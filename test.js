@@ -56,10 +56,67 @@ function onReady() {
 	}
 	function onComplete() {
 		console.log("Scene loading complete.");
-		jitGeomSceneLoader.loadByName('all', function() {
-			console.log("Geometries loading complete.");
-			jitGeomSceneLoader.showByName('all', true);
-		});
+		//hierarchy loaded, so let's load and show some objects by name
+		//first group
+		var name = 'all/groundPlane/niceTeapot';
+		var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
+		console.log(name, 'alreadyLoaded?', alreadyLoaded);
+		jitGeomSceneLoader.loadByName(name, true, 
+			function(value) {
+				console.log(name, "Geometries loading progress:", value);
+			},
+			function() {
+				console.log(name, "Geometries loading complete.");
+				jitGeomSceneLoader.showByName(name, true);
+			}
+		);
+		//another group which includes some objects from the first group
+		setTimeout(function() {
+			name = 'all';
+			jitGeomSceneLoader.loadByName(name, true, 
+				function(value) {
+					console.log(name, "Geometries loading progress:", value);
+				},
+				function() {
+					console.log(name, "Geometries loading complete.");
+					jitGeomSceneLoader.showByName(name, true);
+				}
+			);
+
+		}, 1000);
+		//another group
+		setTimeout(function() {
+			name = 'Gengon001';
+			jitGeomSceneLoader.loadByName(name, true, 
+				function(value) {
+					console.log(name, "Geometries loading progress:", value);
+				},
+				function() {
+					console.log(name, "Geometries loading complete.");
+					jitGeomSceneLoader.showByName(name, true);
+				}
+			);
+
+		}, 2000);
+
+		//redundant group should already be loaded.
+		setTimeout(function() {
+			name = 'all';
+			var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
+			console.log(name, 'alreadyLoaded?', alreadyLoaded);
+			if(!alreadyLoaded) {
+				jitGeomSceneLoader.loadByName(name, true, 
+					function(value) {
+						console.log(name, "Geometries loading progress:", value);
+					},
+					function() {
+						console.log(name, "Geometries loading complete.");
+						jitGeomSceneLoader.showByName(name, true);
+					}
+				);
+			};
+
+		}, 3000);
 	}
 	function onMeshComplete(mesh) {
 		materialMatch(mesh, materials);
@@ -72,7 +129,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debug: true
+		debugLevel: 0
 	});
 	// setTimeout(function() {
 	// }, 1000);

@@ -28,10 +28,10 @@ JITGeometrySceneLoader.prototype = {
 			path: '',
 			geometryPath: '',
 			targetParent: undefined,
-			onMeshComplete: function(mesh) { if(_this.debug) console.log("MESH COMPLETE"); },
-			onComplete: function() { if(_this.debug) console.log('LOAD COMPLETE'); },
-			onProgress: function(val) { if(_this.debug) console.log('LOAD PROGRESS:', val); },
-			debug: false
+			onMeshComplete: function(mesh) { if(_this.debugLevel>=1) console.log("MESH COMPLETE"); },
+			onComplete: function() { if(_this.debugLevel>=1) console.log('LOAD COMPLETE'); },
+			onProgress: function(val) { if(_this.debugLevel>=1) console.log('LOAD PROGRESS:', val); },
+			debugLevel: 0
 		}
 
 		for(var key in defaults) {
@@ -98,14 +98,14 @@ JITGeometrySceneLoader.prototype = {
 		path = this.pathCropGeometries(path);
 		path = path.substring(0, path.lastIndexOf('.json'));
 		// console.log(jsonData);
-		if(this.debug) console.log('loaded', path);
+		if(this.debugLevel>=2) console.log('loaded', path);
 
 		var geometry = this.threeGeometryJSONLoader.parse(jsonData).geometry;
 		this.integrateGeometry(geometry, path);
 	},
 
 	integrateGeometry: function(geometry, path) {
-		if(this.debug) console.log('integrate geometry', path);
+		if(this.debugLevel>=2) console.log('integrate geometry', path);
 		this.geometries[path] = geometry;
 		var objectsToPromote = this.objectsWaitingForGeometriesByGeometryPaths[path];
 		if(objectsToPromote) {
@@ -130,14 +130,14 @@ JITGeometrySceneLoader.prototype = {
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
 		var geometry = this.geometries[geometryName];
-		if(this.debug) console.log('REQUEST', geometryName);
+		if(this.debugLevel>=2) console.log('REQUEST', geometryName);
 		if(geometry) {
-			if(this.debug) console.log('reusing', geometryName);
+			if(this.debugLevel>=2) console.log('reusing', geometryName);
 			object = this.promoteObjectToMesh(object, geometry);
 			return false;
 		} else {
 			if(!this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
-				if(this.debug) console.log('loading', geometryName);
+				if(this.debugLevel>=2) console.log('loading', geometryName);
 				object.geometryLoadCompleteCallback = callback;
 				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
 				loader = loadJSON(geometryPath + '.json', this.geometryRecieved.bind(this, geometryPath + '.json'));
@@ -146,7 +146,7 @@ JITGeometrySceneLoader.prototype = {
 				return true;
 				// this.totalLoading++;
 			} else {
-				if(this.debug) console.log('waiting for', geometryName);
+				if(this.debugLevel>=2) console.log('waiting for', geometryName);
 				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
 				object.loadStatus = LOADING;
 				return false;
@@ -157,7 +157,7 @@ JITGeometrySceneLoader.prototype = {
 	cancelLoadGeometryOf: function(object) {
 		// object.add(new THREE.Mesh(new THREE.SphereGeometry(10)));
 		var geometryName = object.geometryName;
-		if(this.debug) console.log('cancelling', geometryName);
+		if(this.debugLevel>=2) console.log('cancelling', geometryName);
 		var geometryPath = this.geometryPath + '/' + geometryName;
 		var objectsWaitingForGeometry = this.objectsWaitingForGeometriesByGeometryPaths[geometryName]
 		if(objectsWaitingForGeometry) {
@@ -309,32 +309,33 @@ JITGeometrySceneLoader.prototype = {
 		var geometriesLoadedCount = 0;
 		var loading = 0;
 		var _this = this;
-		var progressArray = [];
+		var progressOfEachGeometry = [];
+		function reportProgress() {
+			var aggregatedProgress = 0;
+			progressOfEachGeometry.forEach(function(val){
+				aggregatedProgress += val;
+			})
+			aggregatedProgress /= geometriesToLoadCount;
+			if(progressCallback) {
+				progressCallback(aggregatedProgress);
+			}
+			if(_this.debugLevel>=1) console.log('geometry loading progress:', aggregatedProgress);
+		}
 		function geometryLoadProgressCallback(whichUniqueGeometry, event) {
 			if(event.lengthComputable) {
-				progressArray[whichUniqueGeometry] = event.loaded / event.total;
+				progressOfEachGeometry[whichUniqueGeometry] = event.loaded / event.total;
 			} else {
-				progressArray[whichUniqueGeometry] = event.loaded === 0 ? 0 : (1 - (1 - progressArray[whichUniqueGeometry]) * .5);
+				progressOfEachGeometry[whichUniqueGeometry] = event.loaded === 0 ? 0 : (1 - (1 - progressOfEachGeometry[whichUniqueGeometry]) * .5);
 			}
-
-			var totalProgress = 0;
-			progressArray.forEach(function(val){
-				totalProgress += val;
-			})
-			totalProgress /= geometriesToLoadCount;
-			console.log('progress', totalProgress);
-			// loader.onprogress = function(event) {
-			// 	if(event.lengthComputable) {
-			// 		sceneProgress = event.loaded / event.total;
-			// 	} else {
-			// 		sceneProgress = (1 - (1 - sceneProgress) * .5);
-			// 	}
-			// 	_this.onProgress(sceneProgress);
-			// }
+			reportProgress();
 		}
 		function geometryLoadCompleteCallback(whichUniqueGeometry) {
 			geometriesLoadedCount++;
-			if(_this.debug) console.log(name+'\'s geometry objects loaded:', geometriesLoadedCount + '/' + geometriesToLoadCount);
+			//courtesy progress
+			progressOfEachGeometry[whichUniqueGeometry] = 1;
+			reportProgress();
+
+			if(_this.debugLevel>=1) console.log(name+'\'s geometry objects loaded:', geometriesLoadedCount + '/' + geometriesToLoadCount);
 			if(geometriesToLoadCount === geometriesLoadedCount) {
 				if(callback) {
 					callback();
@@ -354,7 +355,7 @@ JITGeometrySceneLoader.prototype = {
 				) ? 1 : 0;
 				if(actuallyGonnaLoad) {
 					geometriesToLoadCount ++;
-					progressArray.push(0);
+					progressOfEachGeometry.push(0);
 				}
 			}
 		}
@@ -369,7 +370,7 @@ JITGeometrySceneLoader.prototype = {
 					attemptToLoadGeometry(obj);
 				});
 			}
-			if(this.debug) console.log('geometries to load:', geometriesToLoadCount)
+			if(this.debugLevel>=1) console.log('geometries to load:', geometriesToLoadCount)
 			if(geometriesToLoadCount == 0 && callback) {
 				callback();
 			}
@@ -387,7 +388,6 @@ JITGeometrySceneLoader.prototype = {
 			object.traverse(function(obj) {
 				if(obj.loadStatus != LOADED && obj.loadStatus != LOAD_UNAVAILABLE) {
 					loaded = loaded && false;
-					throw new Error('wtf');
 				}
 			})
 		}
