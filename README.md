@@ -2,7 +2,7 @@
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-A threejs scene loader that micromanages geometry loading and showing. Takes advantage of geometry instancing. Use in conjunction with grunt-convertautodesktothreejs.
+A threejs scene loader that micromanages geometry loading and showing. Takes advantage of geometry instancing. Use in conjunction with grunt-convertautodesktothree, grunt-packsplitthreejsmodel, grunt-splitthreejsmodel and grunt-threejs-model-manifest.
 
 ## Usage
 
