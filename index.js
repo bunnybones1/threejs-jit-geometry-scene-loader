@@ -53,7 +53,6 @@ JITGeometrySceneLoader.prototype = {
 		this.geometryRecieved = this.geometryRecieved.bind(this);
 		this.showByName = this.showByName.bind(this);
 		this.hideByName = this.hideByName.bind(this);
-		this.childError = this.childError.bind(this);
 		var url = this.pathBase + this.path;
 		var loader = loadJSON(url + '.hierarchy.json', this.hierarchyRecieved.bind(this, url));
 		var sceneProgress = 0;
@@ -83,18 +82,11 @@ JITGeometrySceneLoader.prototype = {
 		this.onComplete();
 	},
 
-	childError: function(xhr) {
-		var cancelIndex = this.cancelling.indexOf(xhr);
-		if(cancelIndex != -1) {
-			console.log('geometry load cancelled!');
-			this.cancelling.splice(cancelIndex, 1);
-		} else {
-			throw('error loading');
-		}
-		// throw(xhr);
-	},
-
 	geometryRecieved: function(path, err, jsonData) {
+		if(err) {
+			throw err;
+			return;
+		};
 		path = this.pathCropGeometries(path);
 		path = path.substring(0, path.lastIndexOf('.json'));
 		// console.log(jsonData);
