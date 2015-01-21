@@ -377,7 +377,7 @@ JITGeometrySceneLoader.prototype = {
 			object.traverse(function(obj) {
 				if(obj.loadStatus != LOADED && obj.loadStatus != LOAD_UNAVAILABLE) {
 					if(_this.debugLevel > 0) {
-						console.log('loaded?', object.name, object.loadStatus);
+						console.log('loaded?', obj.name, obj.loadStatus);
 					}
 					loaded = loaded && false;
 				}
