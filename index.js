@@ -372,10 +372,11 @@ JITGeometrySceneLoader.prototype = {
 	checkIfLoadedByName: function(name, recursive) {
 		var object = this.getObjectByName(name);
 		var loaded = object.loadStatus == LOADED || object.loadStatus == LOAD_UNAVAILABLE;
+		var _this = this;
 		if(loaded && recursive) {
 			object.traverse(function(obj) {
 				if(obj.loadStatus != LOADED && obj.loadStatus != LOAD_UNAVAILABLE) {
-					if(this.debugLevel > 0) {
+					if(_this.debugLevel > 0) {
 						console.log('loaded?', object.name, 'object.loadStatus');
 					}
 					loaded = loaded && false;
