@@ -58,65 +58,101 @@ function onReady() {
 		console.log("Scene loading complete.");
 		//hierarchy loaded, so let's load and show some objects by name
 		//first group
+
+
+		function loadByName(name) {
+			jitGeomSceneLoader.loadByName(
+				name, 
+				true, 
+				function(value) {
+					progressReporter(name, value);
+				}, 
+				onGeometriesComplete
+			);
+		};
+
+		function progressReporter(name, value) {
+			console.log(name, "Geometries loading progress:", value);
+		};
+
+		function onGeometriesComplete() {
+			console.log(name, "Geometries loading complete.");
+			jitGeomSceneLoader.showByName(name, true);
+		};
+
 		var name = 'all/groundPlane/niceTeapot';
 		var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
 		console.log(name, 'alreadyLoaded?', alreadyLoaded);
-		jitGeomSceneLoader.loadByName(name, true, 
-			function(value) {
-				console.log(name, "Geometries loading progress:", value);
-			},
+		loadByName(name);
+		//another group which includes some objects from the first group
+
+		var tests = [];
+		function registerTest(name, test) {
+			tests.push([name, test]);
+		}
+
+		registerTest(
+			'load all', 
 			function() {
-				console.log(name, "Geometries loading complete.");
-				jitGeomSceneLoader.showByName(name, true);
+				loadByName('all');
 			}
 		);
-		//another group which includes some objects from the first group
-		setTimeout(function() {
-			name = 'all';
-			jitGeomSceneLoader.loadByName(name, true, 
-				function(value) {
-					console.log(name, "Geometries loading progress:", value);
-				},
-				function() {
-					console.log(name, "Geometries loading complete.");
-					jitGeomSceneLoader.showByName(name, true);
-				}
-			);
-
-		}, 1000);
 		//another group
-		setTimeout(function() {
-			name = 'Gengon001';
-			jitGeomSceneLoader.loadByName(name, true, 
-				function(value) {
-					console.log(name, "Geometries loading progress:", value);
-				},
-				function() {
-					console.log(name, "Geometries loading complete.");
-					jitGeomSceneLoader.showByName(name, true);
-				}
-			);
-
-		}, 2000);
+		registerTest(
+			'load a subPart',
+			function() {
+				loadByName('Gengon001');
+			}
+		);
 
 		//redundant group should already be loaded.
-		setTimeout(function() {
-			name = 'all';
-			var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
-			console.log(name, 'alreadyLoaded?', alreadyLoaded);
-			if(!alreadyLoaded) {
-				jitGeomSceneLoader.loadByName(name, true, 
-					function(value) {
-						console.log(name, "Geometries loading progress:", value);
-					},
-					function() {
-						console.log(name, "Geometries loading complete.");
-						jitGeomSceneLoader.showByName(name, true);
-					}
-				);
-			};
+		registerTest(
+			'load even though it might exist', 
+			function() {
+				name = 'all';
+				var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
+				console.log(name, 'alreadyLoaded?', alreadyLoaded);
+				if(!alreadyLoaded) {
+					loadByName(name);
+				};
+			}
+		);
 
-		}, 3000);
+		//redundant group should already be loaded.
+		registerTest(
+			'hide all but Ball1', 
+			function() {
+				jitGeomSceneLoader.hideByName('all/groundPlane', true, true);
+				jitGeomSceneLoader.showByName('all/groundPlane/ball1', true);
+			}
+		);
+
+		registerTest(
+			'hide all but Ball2', 
+			function() {
+				jitGeomSceneLoader.hideByName('all/groundPlane', true, true);
+				jitGeomSceneLoader.showByName('all/groundPlane/ball2', true);
+			}
+		);
+
+		registerTest(
+			'hide all but Ball3', 
+			function() {
+				jitGeomSceneLoader.hideByName('all/groundPlane', true, true);
+				jitGeomSceneLoader.showByName('all/groundPlane/ball3', true);
+			}
+		);
+
+		for (var i = 0; i < tests.length; i++) {
+			function closure() {
+				var i2 = i;
+				setTimeout(function() {
+					console.log("TEST: " + tests[i2][0]);
+					tests[i2][1]();
+				}, 1000*(i2+1));
+			};
+			closure();
+		};
 	}
 	function onMeshComplete(mesh) {
 		materialMatch(mesh, materials);
@@ -131,47 +167,6 @@ function onReady() {
 		onComplete: onComplete,
 		debugLevel: 0
 	});
-	// setTimeout(function() {
-	// }, 1000);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/niceTeapot', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2000);
-	// setTimeout(function() {
-	// 	multiLoadedObject.hideByName('all/groundPlane/niceTeapot', true);
-	// }, 2030);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/niceTeapot', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2060);
-	// setTimeout(function() {
-	// 	multiLoadedObject.hideByName('all/groundPlane/niceTeapot', true);
-	// }, 2090);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/niceTeapot', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2120);
-	// setTimeout(function() {
-	// 	multiLoadedObject.hideByName('all/groundPlane/niceTeapot', true);
-	// }, 2150);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/niceTeapot', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2180);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/niceTeapot', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2180);
-	// setTimeout(function() {
-	// 	multiLoadedObject.showByName('all/groundPlane/somethingMissing', true, function(){
-	// 		console.log('loaded!!!!');
-	// 	});
-	// }, 2280);
 
 }
 

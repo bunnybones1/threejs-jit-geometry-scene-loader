@@ -12,8 +12,6 @@ function JITGeometrySceneLoader(props) {
 };
 
 JITGeometrySceneLoader.prototype = {
-	totalLoading: 0,
-	totalLoaded: 0,
 	objectsByPath: undefined,
 	objectPaths: undefined,
 	geometries: undefined,
@@ -64,7 +62,6 @@ JITGeometrySceneLoader.prototype = {
 			}
 			_this.onProgress(sceneProgress);
 		}
-		this.totalLoading++;
 	},
 
 	hierarchyRecieved: function(path, err, jsonData) {
@@ -136,7 +133,6 @@ JITGeometrySceneLoader.prototype = {
 				loader.onprogress = progressCallback;
 				this.loadersByGeometryPaths[geometryName] = loader;
 				return true;
-				// this.totalLoading++;
 			} else {
 				if(this.debugLevel>=2) console.log('waiting for', geometryName);
 				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
@@ -379,6 +375,9 @@ JITGeometrySceneLoader.prototype = {
 		if(loaded && recursive) {
 			object.traverse(function(obj) {
 				if(obj.loadStatus != LOADED && obj.loadStatus != LOAD_UNAVAILABLE) {
+					if(this.debugLevel > 0) {
+						console.log('loaded?', object.name, 'object.loadStatus');
+					}
 					loaded = loaded && false;
 				}
 			})
