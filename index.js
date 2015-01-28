@@ -129,7 +129,7 @@ JITGeometrySceneLoader.prototype = {
 				if(this.debugLevel>=2) console.log('loading', geometryName);
 				object.geometryLoadCompleteCallback = callback;
 				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
-				loader = loadJSON(geometryPath + '.json', this.geometryRecieved.bind(this, geometryPath + '.json'));
+				var loader = loadJSON(geometryPath + '.json', this.geometryRecieved.bind(this, geometryPath + '.json'));
 				loader.onprogress = progressCallback;
 				this.loadersByGeometryPaths[geometryName] = loader;
 				return true;
