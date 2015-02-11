@@ -95,6 +95,8 @@ JITGeometrySceneLoader.prototype = {
 	integrateGeometry: function(geometry, path) {
 		if(this.debugLevel>=2) console.log('integrate geometry', path);
 		this.geometries[path] = geometry;
+		if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
+
 		var objectsToPromote = this.objectsWaitingForGeometriesByGeometryPaths[path];
 		var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[path];
 		for (var i = objectsToPromote.length - 1; i >= 0; i--) {
@@ -121,6 +123,8 @@ JITGeometrySceneLoader.prototype = {
 		if(geometry) {
 			if(this.debugLevel>=2) console.log('reusing', geometryName);
 			object = this.promoteObjectToMesh(object, geometry);
+			var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
+			meshesUsingGeometry.push(object);
 			return false;
 		} else {
 			if(!this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
@@ -157,6 +161,9 @@ JITGeometrySceneLoader.prototype = {
 				geometry.dispose();
 				delete this.meshesUsingGeometriesByGeometryPaths[geometryPath];
 				delete this.geometries[geometryPath];
+				if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
+			} else {
+				if(this.debugLevel >= 2) console.log('geometry', geometryName, 'still used in', meshesUsingGeometry.length, 'meshes');
 			}
 			return true;
 		} else {

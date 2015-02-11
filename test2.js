@@ -105,7 +105,7 @@ function onReady() {
 			setTimeout(function() {
 				unloadByName(baseObjectName);
 				console.log(baseObjectName, 'unloaded');
-			}, 2000);
+			}, 150);
 
 			if(repeat) {
 				setTimeout( function(){
@@ -128,7 +128,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debugLevel: 2
+		debugLevel: 0
 	});
 	
 }
