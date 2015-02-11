@@ -16,9 +16,10 @@
     "threejs-helper-material-assigner": "^1.0.3"
   },
   "devDependencies": {
-    "urlparams": "^1.0.0",
+    "loadandrunscripts": "^1.0.0",
+    "memory-stats": "^1.0.0",
     "threejs-managed-view": "^1.0.0",
-    "loadandrunscripts": "^1.0.0"
+    "urlparams": "^1.0.0"
   },
   "scripts": {
     "test": "beefy test.js --live --open",

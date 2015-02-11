@@ -2,6 +2,7 @@ function onReady() {
 	var materialMatch = require('threejs-helper-material-assigner');
 	var View = require('threejs-managed-view').View;
 	var JITGeomSceneLoader = require('./');
+	var MemoryStats = require('memory-stats');
 	var memoryStats = new MemoryStats();
 
     memoryStats.domElement.style.position = 'fixed';
@@ -188,7 +189,6 @@ loadAndRunScripts(
 	[
 		'bower_components/three.js/three.js',
 		'lib/stats.min.js',
-		'lib/memory-stats.js',
 		'lib/threex.rendererstats.js',
 		'lib/gzip.js'
 	],
