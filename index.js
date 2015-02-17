@@ -198,7 +198,9 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	geometryRecieved: function(err, jsonData, path) {
-		delete this.loadersByGeometryPaths[path];
+		delete this.loadersByGeometryPaths[path.split('.json')[0]];
+		if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
+		
 		if(err) {
 			if(this.debugLevel>=1) console.warn(err);
 		} else {
