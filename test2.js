@@ -26,6 +26,7 @@ function onReady() {
 	var assetBasePath = '../../assets/models/parseTest/';
 	var scenePath = assetBasePath + 'parse.autodesk';
 	var geometryPath = assetBasePath + 'geometry';
+	var maxConcurrentXhr = 5;
 
 	var materials = {
 		carPaint: new THREE.MeshPhongMaterial({
@@ -103,25 +104,33 @@ function onReady() {
 		};
 
 		function loop(repeat){
+			repeat--;
+			var delay = ~~(Math.random() * 100) + 100;
+			console.log('LOAD -----------------------');
+			console.log('delay', delay);
 			loadByName(baseObjectName);
 			setTimeout(function() {
+				console.log('UNLOAD -----------------------');
 				unloadByName(baseObjectName);
 				console.log(baseObjectName, 'unloaded');
-			}, 150);
-
-			if(repeat) {
+			}, delay);
+			if(repeat > 0) {
 				setTimeout( function(){
 					loop(repeat)
-				}, 4000);
+				}, 1000);
 			}
 		}
 
-		loop(true);
+		loop(20);
 
 	}
 	function onMeshComplete(mesh) {
 		materialMatch(mesh, materials);
 	}
+
+	JITGeomSceneLoader.setMaxConcurrentXhr(maxConcurrentXhr);
+	JITGeomSceneLoader.setXhrDebugLevel(0);
+
 	var jitGeomSceneLoader = new JITGeomSceneLoader({
 		path: scenePath,
 		geometryPath: geometryPath,

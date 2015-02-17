@@ -1,4 +1,75 @@
-var loadJSON = require('load-json-xhr');
+var xhr = require("xhr");
+
+var __xhrDebugLevel = 0;
+var __xhrPoolSize = 0,
+	__xhrPoolFree = [],
+	__totalConcurrentXhr = 0,
+	__maxConcurrentXhr = 5;
+
+function abortXhr(xhr) {
+	if(__xhrDebugLevel >= 1) console.warn('Abort status.', xhr.readyState, xhr.status);
+	if(xhr.readyState === 1 || xhr.readyState === 3) {
+		if(__xhrDebugLevel >= 2) console.warn('Aborted.', xhr.url);
+		xhr.abort();
+	} else {
+		if(__xhrDebugLevel >= 2) console.warn('Aborted before it started.', xhr.url);
+		xhr.onload(new Error('Aborted before it started.'), null, xhr.url);
+	}
+}
+
+function getXhrLoader(opt, cb) {
+	cb = typeof cb === 'function' ? cb : noop;
+
+	if (typeof opt === 'string')
+		opt = { uri: opt };
+	else if (!opt)
+		opt = { };
+
+	if (!opt.headers)
+		opt.headers = { "Content-Type": "application/json" };
+
+	var jsonResponse = /^json$/i.test(opt.responseType);
+
+	if(__xhrPoolFree.length > 0) {
+		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.uri);
+		opt.xhr = __xhrPoolFree.shift();
+	} else {
+		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
+		__xhrPoolSize++;
+	}
+	function callback(err, res, body) {
+		if(__xhrDebugLevel >= 2) console.log('XHR return to pool', _xhr.url);
+		__totalConcurrentXhr--;
+		__xhrPoolFree.push(_xhr);
+		if (err)
+			return cb(err, null, _xhr.url);
+		if (!/^2/.test(res.statusCode))
+			return cb(new Error('http status code: ' + res.statusCode));
+
+		if (jsonResponse) { 
+			cb(null, body, _xhr.url);
+		} else {
+			var data;
+			try {
+				data = JSON.parse(body);
+			} catch (e) {
+				cb(new Error('cannot parse json: ' + e), null, _xhr.url);
+			}
+			if(data) {
+				if(__xhrDebugLevel >= 2) console.log("xhr complete", _xhr.url);
+				cb(null, data, _xhr.url);
+			}
+		}
+	}
+
+	var _xhr = xhr(opt, callback);
+	// _xhr.onabort = function() {
+	// 	// callback(new Error('Aborted.'));
+	// }
+	__totalConcurrentXhr++;
+	return _xhr;
+}
+
 function noop() {}
 
 var SHOULDNT_EVEN_EXIST = -2,
@@ -6,9 +77,55 @@ var SHOULDNT_EVEN_EXIST = -2,
 	LOAD_AVAILABLE = 0,
 	LOADING = 1,
 	LOADED = 2;
+	LOAD_DEFERRED = 3;
+
+
+
+var __deferredLoadGeometryOf = [];
 
 function JITGeometrySceneLoader(props) {
 	if(props) this.load(props);
+}
+
+function deferLoadGeometryOf(jitInstace, args) {
+	var isUniqueGeometry = true;
+	__deferredLoadGeometryOf.forEach(function(deferredLoad) {
+		if(deferredLoad.args[0].geometryName == args[0].geometryName) isUniqueGeometry = false;
+	});
+	__deferredLoadGeometryOf.push({
+		jitInstace: jitInstace,
+		args: args
+	});
+	return isUniqueGeometry;
+}
+
+function cancelDeferredLoadGeometryOf(object) {
+	var index = -1;
+	for (var i = 0, len = __deferredLoadGeometryOf.length; i < len; i++) {
+		if(object === __deferredLoadGeometryOf[i].args[0]) {
+			index = i;
+			break;
+		}
+	}
+	if(index != -1) {
+		__deferredLoadGeometryOf.splice(index, 1);
+	} else {
+		console.warn('deferred object was already cancelled');
+		// debugger;
+	}
+}
+
+function attemptToLoadDeferredObjects() {
+	if(__totalConcurrentXhr < __maxConcurrentXhr && __deferredLoadGeometryOf.length > 0) {
+		var next = __deferredLoadGeometryOf.shift();
+		// setTimeout(function() {
+		if (next.jitInstace.debugLevel >= 2) {
+			console.log('undeferring', next.args[0].name);
+			console.log('deferred objects remaining', __deferredLoadGeometryOf.length);
+		}
+		JITGeometrySceneLoader.prototype.loadGeometryOf.apply(next.jitInstace, next.args);
+		// }, 100);
+	}
 }
 
 JITGeometrySceneLoader.prototype = {
@@ -52,7 +169,7 @@ JITGeometrySceneLoader.prototype = {
 		this.showByName = this.showByName.bind(this);
 		this.hideByName = this.hideByName.bind(this);
 		var url = this.pathBase + this.path;
-		var loader = loadJSON(url + '.hierarchy.json', this.hierarchyRecieved.bind(this, url));
+		var loader = getXhrLoader(url + '.hierarchy.json', this.hierarchyRecieved);
 		var sceneProgress = 0;
 		loader.onprogress = function(event) {
 			if(event.lengthComputable) {
@@ -64,10 +181,11 @@ JITGeometrySceneLoader.prototype = {
 		};
 	},
 
-	hierarchyRecieved: function(path, err, jsonData) {
+	hierarchyRecieved: function(err, jsonData, path) {
 		if(err) {
 			throw err;
 		}
+		path = path.split('.hierarchy.json')[0];
 		this.root = new THREE.Object3D();
 		for(var childName in jsonData) {
 			this.root.add(this.createObject(jsonData[childName], path + '/' + childName));
@@ -78,22 +196,25 @@ JITGeometrySceneLoader.prototype = {
 		this.onComplete();
 	},
 
-	geometryRecieved: function(path, err, jsonData) {
+	geometryRecieved: function(err, jsonData, path) {
+		delete this.loadersByGeometryPaths[path];
 		if(err) {
-			throw err;
-		}
-		path = this.pathCropGeometries(path);
-		path = path.substring(0, path.lastIndexOf('.json'));
-		// console.log(jsonData);
-		if(this.debugLevel>=2) console.log('loaded', path);
+			if(this.debugLevel>=1) console.warn(err);
+		} else {
+			path = this.pathCropGeometries(path);
+			path = path.substring(0, path.lastIndexOf('.json'));
+			// console.log(jsonData);
+			if(this.debugLevel>=2) console.log('loaded', path);
 
-		var geometry = this.threeGeometryJSONLoader.parse(jsonData).geometry;
-		this.meshesUsingGeometriesByGeometryPaths[path] = [];
-		this.integrateGeometry(geometry, path);
+			var geometry = this.threeGeometryJSONLoader.parse(jsonData).geometry;
+			this.meshesUsingGeometriesByGeometryPaths[path] = [];
+			this.integrateGeometry(geometry, path);
+		}
+		attemptToLoadDeferredObjects();
 	},
 
 	integrateGeometry: function(geometry, path) {
-		if(this.debugLevel>=2) console.log('integrate geometry', path);
+		if(this.debugLevel>=2) console.log('integrate geometry', path, this.objectsWaitingForGeometriesByGeometryPaths[path].length, this.meshesUsingGeometriesByGeometryPaths[path].length);
 		this.geometries[path] = geometry;
 		if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
 
@@ -102,6 +223,7 @@ JITGeometrySceneLoader.prototype = {
 		for (var i = objectsToPromote.length - 1; i >= 0; i--) {
 			var object = objectsToPromote[i];
 			var mesh = this.promoteObjectToMesh(object, geometry);
+			mesh.loadStatus = LOADED;
 			meshesUsingGeometry.push(mesh);
 			if(object.geometryLoadCompleteCallback) {
 				// if(i != 0) debugger;
@@ -110,74 +232,108 @@ JITGeometrySceneLoader.prototype = {
 			}
 			// this.isolationTest(mesh);
 		}
-		delete this.loadersByGeometryPaths[object.geometryName];
 		delete this.objectsWaitingForGeometriesByGeometryPaths[path];
 	},
 
 	loadGeometryOf: function(object, progressCallback, callback) {
+		var loadStatus = object.loadStatus;
+		if(loadStatus !== LOAD_AVAILABLE && loadStatus !== LOAD_DEFERRED) return false;
 		// object.add(new THREE.Mesh(new THREE.SphereGeometry(10)));
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
-		var geometry = this.geometries[geometryPath];
 		if(this.debugLevel>=2) console.log('REQUEST', geometryName);
-		if(geometry) {
-			if(this.debugLevel>=2) console.log('reusing', geometryName);
-			object = this.promoteObjectToMesh(object, geometry);
-			var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
-			meshesUsingGeometry.push(object);
-			return false;
-		} else {
-			if(!this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
-				if(this.debugLevel>=2) console.log('loading', geometryName);
-				object.geometryLoadCompleteCallback = callback;
-				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
-				var loader = loadJSON(geometryPath + '.json', this.geometryRecieved.bind(this, geometryPath + '.json'));
-				loader.onprogress = progressCallback;
-				this.loadersByGeometryPaths[geometryName] = loader;
-				object.loadStatus = LOADING;
-				return true;
-			} else {
-				if(this.debugLevel>=2) console.log('waiting for', geometryName);
-				this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
-				object.loadStatus = LOADING;
+		switch(loadStatus) {
+			// case LOAD_UNAVAILABLE:
+			// 	break;
+			case LOAD_AVAILABLE:
+			case LOAD_DEFERRED:
+				var geometry = this.geometries[geometryPath];
+				if(geometry) {
+					if(this.debugLevel>=2) console.log('reusing', geometryName);
+					object = this.promoteObjectToMesh(object, geometry);
+					object.loadStatus = LOADED;
+					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
+					if(this.debugLevel>=2) console.log('counting', geometryName, this.meshesUsingGeometriesByGeometryPaths[geometryPath].length);
+					attemptToLoadDeferredObjects();
+					return false;
+				} else if(this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
+					if(this.debugLevel>=2) console.log('waiting for', geometryName);
+					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
+					object.loadStatus = LOADING;
+					attemptToLoadDeferredObjects();
+					return false;
+				} else if(__totalConcurrentXhr < __maxConcurrentXhr) {
+					if(this.debugLevel>=2) console.log('loading', geometryName);
+					object.geometryLoadCompleteCallback = callback;
+					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
+					var loader = getXhrLoader(geometryPath + '.json', this.geometryRecieved);
+					loader.onprogress = progressCallback;
+					this.loadersByGeometryPaths[geometryPath] = loader;
+					if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
+					object.loadStatus = LOADING;
+					return true;
+				} else {
+					if(this.debugLevel>=2) console.log('deferring', geometryName);
+					var isUniqueGeometry = deferLoadGeometryOf(this, arguments);
+					object.loadStatus = LOAD_DEFERRED;
+					return isUniqueGeometry;
+				}
+			default:
 				return false;
-			}
 		}
 	},
 
 	unloadGeometryOf: function(object) {
+		var loadStatus = object.loadStatus;
+		if(loadStatus !== LOADED && loadStatus !== LOADING && loadStatus !== LOAD_DEFERRED) return;
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
-		var geometry = this.geometries[geometryPath];
 		if(this.debugLevel>=2) console.log('UNLOAD', geometryName);
-		if(geometry) {
-			if(this.debugLevel>=2) console.log('unloading', geometryName);
-			var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
-			var index = meshesUsingGeometry.indexOf(object);
-			meshesUsingGeometry.splice(index, 1);
-			object = this.demoteMeshToObject(object, geometry);
-			if(meshesUsingGeometry.length === 0) {
-				if(this.debugLevel >= 2) console.log('disposing geometry', geometryName)
-				geometry.dispose();
-				delete this.meshesUsingGeometriesByGeometryPaths[geometryPath];
-				delete this.geometries[geometryPath];
-				if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
-			} else {
-				if(this.debugLevel >= 2) console.log('geometry', geometryName, 'still used in', meshesUsingGeometry.length, 'meshes');
-			}
-			return true;
-		} else {
-			if(this.debugLevel>=2) console.log('cancelling load of', geometryName);
-			var objectsWaitingForGeometry = this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
-			var index = objectsWaitingForGeometry.indexOf(object);
-			objectsWaitingForGeometry.splice(index, 1);
-			if(objectsWaitingForGeometry.length === 0) {
-				delete this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
-				var loader = this.loadersByGeometryPaths[geometryName];
-				loader.abort();
-				delete this.loadersByGeometryPaths[geometryName];
-			}
-			return true;
+		switch(loadStatus) {
+			case LOADED: 
+				var geometry = this.geometries[geometryPath];
+				if(this.debugLevel>=2) console.log('unloading', geometryName);
+				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
+				var index = meshesUsingGeometry.indexOf(object);
+				meshesUsingGeometry.splice(index, 1);
+				object = this.demoteMeshToObject(object, geometry);
+				if(meshesUsingGeometry.length === 0) {
+					if(this.debugLevel >= 2) console.log('disposing geometry', geometryName);
+					geometry.dispose();
+					delete this.meshesUsingGeometriesByGeometryPaths[geometryPath];
+					delete this.geometries[geometryPath];
+					if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
+				} else {
+					if(this.debugLevel >= 2) console.log('geometry', geometryName, 'still used in', meshesUsingGeometry.length, 'meshes');
+				}
+				object.loadStatus = LOAD_AVAILABLE;
+				break;
+			case LOAD_DEFERRED:
+				if(this.debugLevel >= 2) console.log('cancelling deferred load of', geometryName);
+				cancelDeferredLoadGeometryOf(object);
+				object.loadStatus = LOAD_AVAILABLE;
+				break;
+			case LOADING:
+				if(this.debugLevel >= 2) console.log('cancelling load of', geometryName);
+				var objectsWaitingForGeometry = this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
+				var index = objectsWaitingForGeometry.indexOf(object);
+				objectsWaitingForGeometry.splice(index, 1);
+				if(this.debugLevel >= 2) {
+					console.log('loading geometry', geometryName, 'still waited on by', objectsWaitingForGeometry.length, 'objects');
+				}
+				if(objectsWaitingForGeometry.length === 0) {
+					delete this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
+					var loader = this.loadersByGeometryPaths[geometryPath];
+					if(loader) {
+						if(this.debugLevel >= 2) console.log('aborting loader of', geometryName);
+						abortXhr(loader);
+						delete this.loadersByGeometryPaths[geometryPath];
+					}
+				}
+				object.loadStatus = LOAD_AVAILABLE;
+				break;
+			case LOAD_AVAILABLE:
+				break;
 		}
 	},
 
@@ -210,16 +366,6 @@ JITGeometrySceneLoader.prototype = {
 		if(geometryName) {
 			object.loadStatus = LOAD_AVAILABLE;
 			object.geometryName = geometryName;
-			var _this = this;
-			object.load = function(progressCallback, callback) {
-				if(object.loadStatus === LOAD_AVAILABLE) {
-					var actuallyLoading = _this.loadGeometryOf(object, progressCallback, callback);
-					object.loadStatus = LOADING;
-					return actuallyLoading;
-				}
-				return false;
-			};
-		
 		} else {
 			object.loadStatus = LOAD_UNAVAILABLE;
 		}
@@ -239,7 +385,6 @@ JITGeometrySceneLoader.prototype = {
 		mesh.name = object.name;
 		var parent = object.parent;
 		object.loadStatus = SHOULDNT_EVEN_EXIST;
-		mesh.loadStatus = LOADED;
 		mesh.materialName = object.materialName;
 		mesh.geometryName = object.geometryName;
 		mesh.position.copy(object.position);
@@ -264,14 +409,6 @@ JITGeometrySceneLoader.prototype = {
 			this.root = mesh;
 		}
 		var _this = this;
-		mesh.unload = function() {
-			if(mesh.loadStatus === LOADED || mesh.loadStatus === LOADING) {
-				var actuallyUnloading = _this.unloadGeometryOf(mesh);
-				mesh.loadStatus = LOAD_AVAILABLE;
-				return actuallyUnloading;
-			}
-			return false;
-		};
 		this.onMeshComplete(mesh); 
 		return mesh;
 	},
@@ -282,7 +419,6 @@ JITGeometrySceneLoader.prototype = {
 		object.name = mesh.name;
 		var parent = mesh.parent;
 		mesh.loadStatus = SHOULDNT_EVEN_EXIST;
-		object.loadStatus = LOAD_AVAILABLE;
 		object.materialName = mesh.materialName;
 		object.geometryName = mesh.geometryName;
 		object.position.copy(mesh.position);
@@ -308,15 +444,6 @@ JITGeometrySceneLoader.prototype = {
 		}
 
 		var _this = this;
-		object.load = function(progressCallback, callback) {
-			if(object.loadStatus === LOAD_AVAILABLE) {
-				var actuallyLoading = _this.loadGeometryOf(object, progressCallback, callback);
-				object.loadStatus = LOADING;
-				return actuallyLoading;
-			}
-			return false;
-		};
-
 
 		this.onMeshDestroy(mesh); 
 		return object;
@@ -414,15 +541,15 @@ JITGeometrySceneLoader.prototype = {
 		}
 
 		function attemptToLoadGeometry(obj) {
-			if(obj.load) {
-				var actuallyGonnaLoad = obj.load(
-					geometryLoadProgressCallback.bind(this, geometriesToLoadCount), 
-					geometryLoadCompleteCallback.bind(this, geometriesToLoadCount)
-				) ? 1 : 0;
-				if(actuallyGonnaLoad) {
-					geometriesToLoadCount ++;
-					progressOfEachGeometry.push(0);
-				}
+			var actuallyGonnaLoad = 
+				_this.loadGeometryOf(
+					obj,
+					geometryLoadProgressCallback.bind(obj, geometriesToLoadCount), 
+					geometryLoadCompleteCallback.bind(obj, geometriesToLoadCount)
+				);
+			if(actuallyGonnaLoad) {
+				geometriesToLoadCount ++;
+				progressOfEachGeometry.push(0);
 			}
 		}
 
@@ -447,10 +574,7 @@ JITGeometrySceneLoader.prototype = {
 
 	unloadByName: function(name, recursive) {
 		var object = this.getObjectByName(name);
-
-		function attemptToUnloadGeometry(obj) {
-			if(obj.unload) obj.unload();
-		}
+		var _this = this;
 
 		if(object) {
 			if(recursive) {
@@ -459,10 +583,10 @@ JITGeometrySceneLoader.prototype = {
 					collection.push(obj);
 				});
 				collection.forEach(function(obj){
-					attemptToUnloadGeometry(obj);
+					_this.unloadGeometryOf(obj);
 				})
 			} else {
-				attemptToUnloadGeometry(object);
+				this.unloadGeometryOf(object);
 			}
 		}
 	},
@@ -489,5 +613,14 @@ JITGeometrySceneLoader.prototype = {
 		return this.objectsByPath[objPath];
 	}
 };
+
+JITGeometrySceneLoader.setMaxConcurrentXhr = function (val) {
+	__maxConcurrentXhr = val;
+}
+
+
+JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
+	__xhrDebugLevel = val;
+}
 
 module.exports = JITGeometrySceneLoader;
