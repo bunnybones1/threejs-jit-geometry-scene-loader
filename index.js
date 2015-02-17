@@ -385,6 +385,7 @@ JITGeometrySceneLoader.prototype = {
 		mesh.name = object.name;
 		var parent = object.parent;
 		object.loadStatus = SHOULDNT_EVEN_EXIST;
+		mesh.loadStatus = LOADED;
 		mesh.materialName = object.materialName;
 		mesh.geometryName = object.geometryName;
 		mesh.position.copy(object.position);
@@ -593,11 +594,11 @@ JITGeometrySceneLoader.prototype = {
 
 	checkIfLoadedByName: function(name, recursive) {
 		var object = this.getObjectByName(name);
-		var loaded = object.loadStatus == LOADED || object.loadStatus == LOAD_UNAVAILABLE;
+		var loaded = object.loadStatus === LOADED || object.loadStatus === LOAD_UNAVAILABLE;
 		var _this = this;
 		if(loaded && recursive) {
 			object.traverse(function(obj) {
-				if(obj.loadStatus != LOADED && obj.loadStatus != LOAD_UNAVAILABLE) {
+				if(obj.loadStatus !== LOADED && obj.loadStatus !== LOAD_UNAVAILABLE) {
 					if(_this.debugLevel > 0) {
 						console.log('loaded?', obj.name, obj.loadStatus);
 					}
@@ -611,6 +612,11 @@ JITGeometrySceneLoader.prototype = {
 	getObjectByName: function(name) {
 		var objPath = this.pathBase + this.path + '/' + name;
 		return this.objectsByPath[objPath];
+	},
+
+	getNameByPath: function(path) {
+		var objPath = this.pathBase + this.path + '/';
+		return path.split(objPath)[1];
 	}
 };
 

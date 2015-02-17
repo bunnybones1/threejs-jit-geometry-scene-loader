@@ -100,6 +100,7 @@ function onReady() {
 
 		function onGeometriesComplete() {
 			console.log(baseObjectName, "Geometries loading complete.");
+			jitGeomSceneLoader.checkIfLoadedByName(baseObjectName, true);
 			jitGeomSceneLoader.showByName(baseObjectName, true);
 		};
 
@@ -139,7 +140,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debugLevel: 0
+		debugLevel: 2
 	});
 	
 }
