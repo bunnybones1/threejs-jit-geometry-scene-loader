@@ -72,14 +72,15 @@ function getXhrLoader(opt, cb) {
 
 function noop() {}
 
-var SHOULDNT_EVEN_EXIST = -2,
-	LOAD_UNAVAILABLE = -1,
-	LOAD_AVAILABLE = 0,
-	LOADING = 1,
-	LOADED = 2;
-	LOAD_DEFERRED = 3;
-
-
+var statuses = {
+	IMPOSTER : -3,
+	SHOULDNT_EVEN_EXIST : -2,
+	LOAD_UNAVAILABLE : -1,
+	LOAD_AVAILABLE : 0,
+	LOADING : 1,
+	LOADED : 2,
+	LOAD_DEFERRED : 3
+}
 
 var __deferredLoadGeometryOf = [];
 
@@ -223,7 +224,7 @@ JITGeometrySceneLoader.prototype = {
 		for (var i = objectsToPromote.length - 1; i >= 0; i--) {
 			var object = objectsToPromote[i];
 			var mesh = this.promoteObjectToMesh(object, geometry);
-			mesh.loadStatus = LOADED;
+			mesh.loadStatus = statuses.LOADED;
 			meshesUsingGeometry.push(mesh);
 			if(object.geometryLoadCompleteCallback) {
 				// if(i != 0) debugger;
@@ -237,21 +238,21 @@ JITGeometrySceneLoader.prototype = {
 
 	loadGeometryOf: function(object, progressCallback, callback) {
 		var loadStatus = object.loadStatus;
-		if(loadStatus !== LOAD_AVAILABLE && loadStatus !== LOAD_DEFERRED) return false;
+		if(loadStatus !== statuses.LOAD_AVAILABLE && loadStatus !== statuses.LOAD_DEFERRED) return false;
 		// object.add(new THREE.Mesh(new THREE.SphereGeometry(10)));
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
 		if(this.debugLevel>=2) console.log('REQUEST', geometryName);
 		switch(loadStatus) {
-			// case LOAD_UNAVAILABLE:
+			// case statuses.LOAD_UNAVAILABLE:
 			// 	break;
-			case LOAD_AVAILABLE:
-			case LOAD_DEFERRED:
+			case statuses.LOAD_AVAILABLE:
+			case statuses.LOAD_DEFERRED:
 				var geometry = this.geometries[geometryPath];
 				if(geometry) {
 					if(this.debugLevel>=2) console.log('reusing', geometryName);
 					object = this.promoteObjectToMesh(object, geometry);
-					object.loadStatus = LOADED;
+					object.loadStatus = statuses.LOADED;
 					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
 					if(this.debugLevel>=2) console.log('counting', geometryName, this.meshesUsingGeometriesByGeometryPaths[geometryPath].length);
 					attemptToLoadDeferredObjects();
@@ -259,7 +260,7 @@ JITGeometrySceneLoader.prototype = {
 				} else if(this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
 					if(this.debugLevel>=2) console.log('waiting for', geometryName);
 					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
-					object.loadStatus = LOADING;
+					object.loadStatus = statuses.LOADING;
 					attemptToLoadDeferredObjects();
 					return false;
 				} else if(__totalConcurrentXhr < __maxConcurrentXhr) {
@@ -270,12 +271,12 @@ JITGeometrySceneLoader.prototype = {
 					loader.onprogress = progressCallback;
 					this.loadersByGeometryPaths[geometryPath] = loader;
 					if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
-					object.loadStatus = LOADING;
+					object.loadStatus = statuses.LOADING;
 					return true;
 				} else {
 					if(this.debugLevel>=2) console.log('deferring', geometryName);
 					var isUniqueGeometry = deferLoadGeometryOf(this, arguments);
-					object.loadStatus = LOAD_DEFERRED;
+					object.loadStatus = statuses.LOAD_DEFERRED;
 					return isUniqueGeometry;
 				}
 			default:
@@ -285,12 +286,15 @@ JITGeometrySceneLoader.prototype = {
 
 	unloadGeometryOf: function(object) {
 		var loadStatus = object.loadStatus;
-		if(loadStatus !== LOADED && loadStatus !== LOADING && loadStatus !== LOAD_DEFERRED) return;
+		if(loadStatus !== statuses.LOADED && loadStatus !== statuses.LOADING && loadStatus !== statuses.LOAD_DEFERRED) return;
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
 		if(this.debugLevel>=2) console.log('UNLOAD', geometryName);
 		switch(loadStatus) {
-			case LOADED: 
+			case statuses.IMPOSTER:
+				object.parent.remove(object);
+				break;
+			case statuses.LOADED: 
 				var geometry = this.geometries[geometryPath];
 				if(this.debugLevel>=2) console.log('unloading', geometryName);
 				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
@@ -306,14 +310,14 @@ JITGeometrySceneLoader.prototype = {
 				} else {
 					if(this.debugLevel >= 2) console.log('geometry', geometryName, 'still used in', meshesUsingGeometry.length, 'meshes');
 				}
-				object.loadStatus = LOAD_AVAILABLE;
+				object.loadStatus = statuses.LOAD_AVAILABLE;
 				break;
-			case LOAD_DEFERRED:
+			case statuses.LOAD_DEFERRED:
 				if(this.debugLevel >= 2) console.log('cancelling deferred load of', geometryName);
 				cancelDeferredLoadGeometryOf(object);
-				object.loadStatus = LOAD_AVAILABLE;
+				object.loadStatus = statuses.LOAD_AVAILABLE;
 				break;
-			case LOADING:
+			case statuses.LOADING:
 				if(this.debugLevel >= 2) console.log('cancelling load of', geometryName);
 				var objectsWaitingForGeometry = this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
 				var index = objectsWaitingForGeometry.indexOf(object);
@@ -330,9 +334,9 @@ JITGeometrySceneLoader.prototype = {
 						delete this.loadersByGeometryPaths[geometryPath];
 					}
 				}
-				object.loadStatus = LOAD_AVAILABLE;
+				object.loadStatus = statuses.LOAD_AVAILABLE;
 				break;
-			case LOAD_AVAILABLE:
+			case statuses.LOAD_AVAILABLE:
 				break;
 		}
 	},
@@ -364,10 +368,10 @@ JITGeometrySceneLoader.prototype = {
 
 		var geometryName = jsonData.geometry;
 		if(geometryName) {
-			object.loadStatus = LOAD_AVAILABLE;
+			object.loadStatus = statuses.LOAD_AVAILABLE;
 			object.geometryName = geometryName;
 		} else {
-			object.loadStatus = LOAD_UNAVAILABLE;
+			object.loadStatus = statuses.LOAD_UNAVAILABLE;
 		}
 		
 		if(jsonData.quaternion) {
@@ -384,8 +388,8 @@ JITGeometrySceneLoader.prototype = {
 		mesh.path = object.path;
 		mesh.name = object.name;
 		var parent = object.parent;
-		object.loadStatus = SHOULDNT_EVEN_EXIST;
-		mesh.loadStatus = LOADED;
+		object.loadStatus = statuses.SHOULDNT_EVEN_EXIST;
+		mesh.loadStatus = statuses.LOADED;
 		mesh.materialName = object.materialName;
 		mesh.geometryName = object.geometryName;
 		mesh.position.copy(object.position);
@@ -419,7 +423,7 @@ JITGeometrySceneLoader.prototype = {
 		object.path = mesh.path;
 		object.name = mesh.name;
 		var parent = mesh.parent;
-		mesh.loadStatus = SHOULDNT_EVEN_EXIST;
+		mesh.loadStatus = statuses.SHOULDNT_EVEN_EXIST;
 		object.materialName = mesh.materialName;
 		object.geometryName = mesh.geometryName;
 		object.position.copy(mesh.position);
@@ -594,11 +598,11 @@ JITGeometrySceneLoader.prototype = {
 
 	checkIfLoadedByName: function(name, recursive) {
 		var object = this.getObjectByName(name);
-		var loaded = object.loadStatus === LOADED || object.loadStatus === LOAD_UNAVAILABLE;
+		var loaded = object.loadStatus === statuses.LOADED || object.loadStatus === statuses.LOAD_UNAVAILABLE || object.loadStatus === statuses.IMPOSTER;
 		var _this = this;
 		if(loaded && recursive) {
 			object.traverse(function(obj) {
-				if(obj.loadStatus !== LOADED && obj.loadStatus !== LOAD_UNAVAILABLE) {
+				if(obj.loadStatus !== statuses.LOADED && obj.loadStatus !== statuses.LOAD_UNAVAILABLE && obj.loadStatus !== statuses.IMPOSTER) {
 					if(_this.debugLevel > 0) {
 						console.log('loaded?', obj.name, obj.loadStatus);
 					}
@@ -628,5 +632,7 @@ JITGeometrySceneLoader.setMaxConcurrentXhr = function (val) {
 JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
 	__xhrDebugLevel = val;
 }
+
+JITGeometrySceneLoader.statuses = statuses;
 
 module.exports = JITGeometrySceneLoader;
