@@ -26,7 +26,7 @@ function onReady() {
 	var assetBasePath = '../../assets/models/parseTest/';
 	var scenePath = assetBasePath + 'parse.autodesk';
 	var geometryPath = assetBasePath + 'geometry';
-	var maxConcurrentXhr = 5;
+	var maxConcurrentXhr = 1;
 
 	var materials = {
 		carPaint: new THREE.MeshPhongMaterial({
@@ -106,7 +106,7 @@ function onReady() {
 
 		function loop(repeat){
 			repeat--;
-			var delay = ~~(Math.random() * 100) + 100;
+			var delay = ~~(Math.random() * 100) + 400;
 			console.log('LOAD -----------------------');
 			console.log('delay', delay);
 			loadByName(baseObjectName);
