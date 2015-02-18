@@ -1,3 +1,14 @@
+var maxConcurrentXhr = 1,
+	debugLevelJIT = 2,
+	debugLevelHxr = 2,
+	abortDurationBaseline = 100,
+	delayBetweenIterations = 500,
+	abortDurationVariation = 200,
+	abortIterations = 10;
+
+
+
+
 function onReady() {
 	var materialMatch = require('threejs-helper-material-assigner');
 	var View = require('threejs-managed-view').View;
@@ -26,7 +37,6 @@ function onReady() {
 	var assetBasePath = '../../assets/models/parseTest/';
 	var scenePath = assetBasePath + 'parse.autodesk';
 	var geometryPath = assetBasePath + 'geometry';
-	var maxConcurrentXhr = 1;
 
 	var materials = {
 		carPaint: new THREE.MeshPhongMaterial({
@@ -82,7 +92,7 @@ function onReady() {
 				true, 
 				function(value) {
 					progressReporter(name, value);
-				}, 
+				},
 				onGeometriesComplete
 			);
 		};
@@ -106,23 +116,23 @@ function onReady() {
 
 		function loop(repeat){
 			repeat--;
-			var delay = ~~(Math.random() * 100) + 400;
+			var delay = ~~(Math.random() * abortDurationVariation) + abortDurationBaseline;
 			console.log('LOAD -----------------------');
 			console.log('delay', delay);
 			loadByName(baseObjectName);
-			setTimeout(function() {
-				console.log('UNLOAD -----------------------');
-				unloadByName(baseObjectName);
-				console.log(baseObjectName, 'unloaded');
-			}, delay);
 			if(repeat > 0) {
+				setTimeout(function() {
+					console.log('UNLOAD -----------------------');
+					unloadByName(baseObjectName);
+					console.log(baseObjectName, 'unloaded');
+				}, delay);
 				setTimeout( function(){
 					loop(repeat)
-				}, 1000);
+				}, delayBetweenIterations + abortDurationBaseline + abortDurationVariation);
 			}
 		}
 
-		loop(20);
+		loop(abortIterations);
 
 	}
 	function onMeshComplete(mesh) {
@@ -130,7 +140,7 @@ function onReady() {
 	}
 
 	JITGeomSceneLoader.setMaxConcurrentXhr(maxConcurrentXhr);
-	JITGeomSceneLoader.setXhrDebugLevel(0);
+	JITGeomSceneLoader.setXhrDebugLevel(debugLevelHxr);
 
 	var jitGeomSceneLoader = new JITGeomSceneLoader({
 		path: scenePath,
@@ -140,7 +150,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debugLevel: 2
+		debugLevel: debugLevelJIT
 	});
 	
 }

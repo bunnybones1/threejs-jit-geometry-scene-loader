@@ -130,6 +130,7 @@ function cancelDeferredLoadGeometryOf(object) {
 		}
 	}
 	if(index != -1) {
+		console.log('deferred object cancelled', object.name);
 		__deferredLoadGeometryOf.splice(index, 1);
 	} else {
 		console.warn('deferred object was already cancelled');
@@ -234,8 +235,12 @@ JITGeometrySceneLoader.prototype = {
 			if(this.debugLevel>=2) console.log('loaded', path);
 
 			var geometry = this.threeGeometryJSONLoader.parse(jsonData).geometry;
-			this.meshesUsingGeometriesByGeometryPaths[path] = [];
-			this.integrateGeometry(geometry, path);
+			if(this.objectsWaitingForGeometriesByGeometryPaths[path]) {
+				this.meshesUsingGeometriesByGeometryPaths[path] = [];
+				this.integrateGeometry(geometry, path);
+			} else {
+				if(this.debugLevel>=2) console.warn('No meshes to receive geomerty', path);
+			}
 		}
 		attemptToLoadDeferredObjects();
 	},
