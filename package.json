@@ -1,6 +1,6 @@
 {
   "name": "threejs-jit-geometry-scene-loader",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "description": "A threejs scene loader that micromanages geometry loading and showing. Takes advantage of geometry instancing. Use in conjunction with grunt-convertautodesktothree, grunt-packsplitthreejsmodel, grunt-splitthreejsmodel and grunt-threejs-model-manifest.",
   "main": "index.js",
   "license": "MIT",
