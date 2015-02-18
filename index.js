@@ -251,14 +251,14 @@ JITGeometrySceneLoader.prototype = {
 			var object = objectsToPromote[i];
 			var mesh = this.promoteObjectToMesh(object, geometry);
 			meshesUsingGeometry.push(mesh);
-			console.log('calling back?', mesh.path);
+			// console.log('calling back?', mesh.path);
 			if(object.geometryLoadCompleteCallback) {
 				// if(i != 0) debugger;
-				console.log('calling back', mesh.path);
+				// console.log('calling back', mesh.path);
 				object.geometryLoadCompleteCallback();
 				delete object.geometryLoadCompleteCallback;
 			} else {
-				console.log('nope', mesh.path, 'out of', objectsToPromote.length);
+				// console.log('nope', mesh.path, 'out of', objectsToPromote.length);
 			}
 			// this.isolationTest(mesh);
 		}
