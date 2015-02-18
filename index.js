@@ -288,12 +288,13 @@ JITGeometrySceneLoader.prototype = {
 
 	unloadGeometryOf: function(object) {
 		var loadStatus = object.loadStatus;
-		if(loadStatus !== statuses.LOADED && loadStatus !== statuses.LOADING && loadStatus !== statuses.LOAD_DEFERRED) return;
+		if(loadStatus !== statuses.LOADED && loadStatus !== statuses.LOADING && loadStatus !== statuses.LOAD_DEFERRED && loadStatus !== statuses.IMPOSTER) return;
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
 		if(this.debugLevel>=2) console.log('UNLOAD', geometryName);
 		switch(loadStatus) {
 			case statuses.IMPOSTER:
+				if(this.debugLevel>=2) console.log('disposing imposter mesh', geometryName)
 				object.parent.remove(object);
 				break;
 			case statuses.LOADED: 
@@ -338,8 +339,8 @@ JITGeometrySceneLoader.prototype = {
 				}
 				object.loadStatus = statuses.LOAD_AVAILABLE;
 				break;
-			case statuses.LOAD_AVAILABLE:
-				break;
+			// case statuses.LOAD_AVAILABLE:
+			// 	break;
 		}
 	},
 
@@ -405,6 +406,10 @@ JITGeometrySceneLoader.prototype = {
 			throw new Error('wtf');
 		}
 
+		mesh.updateMatrix();
+		mesh.updateMatrixWorld();
+		mesh.matrixAutoUpdate = object.matrixAutoUpdate;
+
 		for (var i = object.children.length - 1; i >= 0; i--) {
 			if(this.debugLevel >= 2) console.log('moving', object.children[i].path, 'to mesh');
 			mesh.add(object.children[i]);
@@ -416,6 +421,7 @@ JITGeometrySceneLoader.prototype = {
 			this.root = mesh;
 		}
 		var _this = this;
+		console.log('mesh promoted', object.name)
 		this.onMeshComplete(mesh); 
 		return mesh;
 	},
@@ -438,6 +444,10 @@ JITGeometrySceneLoader.prototype = {
 		} else {
 			throw new Error('wtf');
 		}
+
+		mesh.updateMatrix();
+		mesh.updateMatrixWorld();
+		mesh.matrixAutoUpdate = object.matrixAutoUpdate;
 
 		for (var i = mesh.children.length - 1; i >= 0; i--) {
 			if(this.debugLevel >= 2) console.log('moving', mesh.children[i].path, 'to object');
