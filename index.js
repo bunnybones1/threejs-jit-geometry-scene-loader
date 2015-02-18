@@ -421,7 +421,6 @@ JITGeometrySceneLoader.prototype = {
 			this.root = mesh;
 		}
 		var _this = this;
-		console.log('mesh promoted', object.name)
 		this.onMeshComplete(mesh); 
 		return mesh;
 	},
