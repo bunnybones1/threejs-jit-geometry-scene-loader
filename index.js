@@ -17,8 +17,7 @@ function abortXhr(xhr) {
 	}
 }
 
-function getXhrLoader(opt, cb) {
-	cb = typeof cb === 'function' ? cb : noop;
+function getXhrLoader(opt, onProgress, onComplete) {
 
 	if (typeof opt === 'string')
 		opt = { uri: opt };
@@ -37,32 +36,56 @@ function getXhrLoader(opt, cb) {
 		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
 		__xhrPoolSize++;
 	}
-	function callback(err, res, body) {
+	function callbackHandler(err, res, body) {
 		if(__xhrDebugLevel >= 2) console.log('XHR return to pool', _xhr.url);
 		__totalConcurrentXhr--;
 		__xhrPoolFree.push(_xhr);
-		if (err)
-			return cb(err, null, _xhr.url);
-		if (!/^2/.test(res.statusCode))
-			return cb(new Error('http status code: ' + res.statusCode));
+		if (err) {
+			_xhr.onCompleteCallbacks.forEach(function(callback){
+				callback(err, null, _xhr.url);
+			});
+			return;
+		}
+		if (!/^2/.test(res.statusCode)) {
+			_xhr.onCompleteCallbacks.forEach(function(callback){
+				callback(new Error('http status code: ' + res.statusCode));
+			});
+			return;
+		}
 
 		if (jsonResponse) { 
-			cb(null, body, _xhr.url);
+			_xhr.onCompleteCallbacks.forEach(function(callback){
+				callback(null, body, _xhr.url);
+			});
 		} else {
 			var data;
 			try {
 				data = JSON.parse(body);
 			} catch (e) {
-				cb(new Error('cannot parse json: ' + e), null, _xhr.url);
+				_xhr.onCompleteCallbacks.forEach(function(callback){
+					callback(new Error('cannot parse json: ' + e), null, _xhr.url);
+				});
 			}
 			if(data) {
 				if(__xhrDebugLevel >= 2) console.log("xhr complete", _xhr.url);
-				cb(null, data, _xhr.url);
+				_xhr.onCompleteCallbacks.forEach(function(callback){
+					callback(null, data, _xhr.url);
+				});
 			}
 		}
 	}
 
-	var _xhr = xhr(opt, callback);
+	var _xhr = xhr(opt, callbackHandler);
+	function progressHandler(val) {
+		_xhr.onProgressCallbacks.forEach(function(progressCallback) {
+			progressCallback(val);
+		})
+	}
+	_xhr.onprogress = progressHandler;
+	if(typeof(onProgress) === 'function') onProgress = [onProgress];
+	if(typeof(onComplete) === 'function') onComplete = [onComplete];
+	_xhr.onProgressCallbacks = onProgress;
+	_xhr.onCompleteCallbacks = onComplete;
 	// _xhr.onabort = function() {
 	// 	// callback(new Error('Aborted.'));
 	// }
@@ -82,6 +105,14 @@ var statuses = {
 	LOAD_DEFERRED : 3
 }
 
+var loadResponses = {
+	ALREADY_LOADED : 0,
+	LOAD_STARTED : 1,
+	ALREADY_LOADING : 2,
+	LOAD_DEFERRED_UNIQUE : 3,
+	LOAD_DEFERRED_REPEAT : 4
+}
+
 var __deferredLoadGeometryOf = [];
 
 function JITGeometrySceneLoader(props) {
@@ -91,12 +122,28 @@ function JITGeometrySceneLoader(props) {
 function deferLoadGeometryOf(jitInstace, args) {
 	var isUniqueGeometry = true;
 	__deferredLoadGeometryOf.forEach(function(deferredLoad) {
-		if(deferredLoad.args[0].geometryName == args[0].geometryName) isUniqueGeometry = false;
+		if(deferredLoad.args[0].geometryName == args[0].geometryName) {
+			isUniqueGeometry = false;
+			//onProgress
+			if(typeof(deferredLoad.args[1]) === 'function') {
+				deferredLoad.args[1] = [deferredLoad.args[1], args[1]];
+			} else {
+				deferredLoad.args[1].push(args[1]);
+			}
+			//onComplete
+			if(typeof(deferredLoad.args[2]) === 'function') {
+				deferredLoad.args[2] = [deferredLoad.args[2], args[2]];
+			} else {
+				deferredLoad.args[2].push(args[2]);
+			}
+		}
 	});
-	__deferredLoadGeometryOf.push({
-		jitInstace: jitInstace,
-		args: args
-	});
+	if(isUniqueGeometry) {
+		__deferredLoadGeometryOf.push({
+			jitInstace: jitInstace,
+			args: args
+		});
+	}
 	return isUniqueGeometry;
 }
 
@@ -170,9 +217,8 @@ JITGeometrySceneLoader.prototype = {
 		this.showByName = this.showByName.bind(this);
 		this.hideByName = this.hideByName.bind(this);
 		var url = this.pathBase + this.path;
-		var loader = getXhrLoader(url + '.hierarchy.json', this.hierarchyRecieved);
-		var sceneProgress = 0;
-		loader.onprogress = function(event) {
+		
+		function onProgress(event) {
 			if(event.lengthComputable) {
 				sceneProgress = event.loaded / event.total;
 			} else {
@@ -180,6 +226,9 @@ JITGeometrySceneLoader.prototype = {
 			}
 			_this.onProgress(sceneProgress);
 		};
+
+		var loader = getXhrLoader(url + '.hierarchy.json', onProgress, this.hierarchyRecieved);
+		var sceneProgress = 0;
 	},
 
 	hierarchyRecieved: function(err, jsonData, path) {
@@ -226,11 +275,18 @@ JITGeometrySceneLoader.prototype = {
 		for (var i = objectsToPromote.length - 1; i >= 0; i--) {
 			var object = objectsToPromote[i];
 			var mesh = this.promoteObjectToMesh(object, geometry);
-			mesh.loadStatus = statuses.LOADED;
 			meshesUsingGeometry.push(mesh);
+			console.log('calling back?', mesh.path);
 			if(object.geometryLoadCompleteCallback) {
 				// if(i != 0) debugger;
-				object.geometryLoadCompleteCallback();
+				console.log('calling back', mesh.path);
+				if(typeof(object.geometryLoadCompleteCallback) === 'function') {
+					object.geometryLoadCompleteCallback();
+				} else {
+					object.geometryLoadCompleteCallback.forEach(function(callback) {
+						callback();
+					});
+				}
 				delete object.geometryLoadCompleteCallback;
 			}
 			// this.isolationTest(mesh);
@@ -254,35 +310,38 @@ JITGeometrySceneLoader.prototype = {
 				if(geometry) {
 					if(this.debugLevel>=2) console.log('reusing', geometryName);
 					object = this.promoteObjectToMesh(object, geometry);
-					object.loadStatus = statuses.LOADED;
 					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
 					if(this.debugLevel>=2) console.log('counting', geometryName, this.meshesUsingGeometriesByGeometryPaths[geometryPath].length);
 					attemptToLoadDeferredObjects();
-					return false;
+					return loadResponses.ALREADY_LOADED;
 				} else if(this.objectsWaitingForGeometriesByGeometryPaths[geometryPath]) {
 					if(this.debugLevel>=2) console.log('waiting for', geometryName);
 					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath].push(object);
+					var loader = this.loadersByGeometryPaths[geometryPath];
+					loader.onProgressCallbacks.push(progressCallback);
+					loader.onCompleteCallbacks.push(callback);
+					// if(!(typeof(progressCallback) === 'function')) debugger;
+					//todo support multiple switch
 					object.loadStatus = statuses.LOADING;
 					attemptToLoadDeferredObjects();
-					return false;
+					return loadResponses.ALREADY_LOADING;
 				} else if(__totalConcurrentXhr < __maxConcurrentXhr) {
 					if(this.debugLevel>=2) console.log('loading', geometryName);
 					object.geometryLoadCompleteCallback = callback;
 					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
-					var loader = getXhrLoader(geometryPath + '.json', this.geometryRecieved);
-					loader.onprogress = progressCallback;
+					var loader = getXhrLoader(geometryPath + '.json', progressCallback, this.geometryRecieved);
 					this.loadersByGeometryPaths[geometryPath] = loader;
 					if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
 					object.loadStatus = statuses.LOADING;
-					return true;
+					return loadResponses.LOAD_STARTED;
 				} else {
 					if(this.debugLevel>=2) console.log('deferring', geometryName);
 					var isUniqueGeometry = deferLoadGeometryOf(this, arguments);
 					object.loadStatus = statuses.LOAD_DEFERRED;
-					return isUniqueGeometry;
+					return isUniqueGeometry ? loadResponses.LOAD_DEFERRED_UNIQUE : loadResponses.LOAD_DEFERRED_REPEAT;
 				}
 			default:
-				return false;
+				return LOAD_UNAVAILABLE;
 		}
 	},
 
@@ -513,8 +572,10 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	loadByName: function(name, recursive, progressCallback, callback) {
+
 		var object = this.getObjectByName(name);
 		var geometriesToLoadCount = 0;
+		var geometriesAlreadyLoadingCount = 0;
 		var geometriesLoadedCount = 0;
 		var loading = 0;
 		var _this = this;
@@ -557,15 +618,20 @@ JITGeometrySceneLoader.prototype = {
 		}
 
 		function attemptToLoadGeometry(obj) {
-			var actuallyGonnaLoad = 
+			var loadResponse = 
 				_this.loadGeometryOf(
 					obj,
 					geometryLoadProgressCallback.bind(obj, geometriesToLoadCount), 
 					geometryLoadCompleteCallback.bind(obj, geometriesToLoadCount)
 				);
-			if(actuallyGonnaLoad) {
-				geometriesToLoadCount ++;
-				progressOfEachGeometry.push(0);
+			switch(loadResponse) {
+				case loadResponses.LOAD_STARTED:
+				case loadResponses.LOAD_DEFERRED_UNIQUE:
+				case loadResponses.LOAD_DEFERRED_REPEAT:
+				case loadResponses.ALREADY_LOADING:
+					geometriesToLoadCount++;
+					progressOfEachGeometry.push(0);
+					break;
 			}
 		}
 
@@ -582,7 +648,7 @@ JITGeometrySceneLoader.prototype = {
 				attemptToLoadGeometry(object);
 			}
 			if(this.debugLevel>=1) console.log('geometries to load:', geometriesToLoadCount);
-			if(geometriesToLoadCount === 0 && callback) {
+			if(geometriesToLoadCount === 0 && callback){
 				callback();
 			}
 		}
