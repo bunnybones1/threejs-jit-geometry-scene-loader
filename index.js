@@ -90,8 +90,7 @@ var loadResponses = {
 	ALREADY_LOADED : 0,
 	LOAD_STARTED : 1,
 	ALREADY_LOADING : 2,
-	LOAD_DEFERRED_UNIQUE : 3,
-	LOAD_DEFERRED_REPEAT : 4
+	LOAD_DEFERRED : 3
 }
 
 var __deferredLoadGeometryOf = [];
@@ -100,11 +99,26 @@ function JITGeometrySceneLoader(props) {
 	if(props) this.load(props);
 }
 
-function deferLoadGeometryOf(jitInstace, args) {
-	__deferredLoadGeometryOf.push({
-		jitInstace: jitInstace,
+function deferLoadGeometryOf(jitInstance, args) {
+	var indexOfPreexistingDeferredObject = -1;
+	var deferredLoad = {
+		jitInstance: jitInstance,
 		args: args
-	});
+	}
+
+	for (var i = 0; i < __deferredLoadGeometryOf.length; i++) {
+		var oldDeferredLoad = __deferredLoadGeometryOf[i];
+		if(oldDeferredLoad.args[0].geometryName === args[0].geometryName) {
+			indexOfPreexistingDeferredObject = i;
+			break;
+		}
+	}
+	if(indexOfPreexistingDeferredObject === -1) {
+		__deferredLoadGeometryOf.push(deferredLoad);
+	} else {
+		// __deferredLoadGeometryOf.push(deferredLoad);
+		__deferredLoadGeometryOf.splice(indexOfPreexistingDeferredObject, 0, deferredLoad);
+	}
 }
 
 function cancelDeferredLoadGeometryOf(object) {
@@ -127,11 +141,12 @@ function attemptToLoadDeferredObjects() {
 	if(__totalConcurrentXhr < __maxConcurrentXhr && __deferredLoadGeometryOf.length > 0) {
 		var next = __deferredLoadGeometryOf.shift();
 		// setTimeout(function() {
-		if (next.jitInstace.debugLevel >= 2) {
+		if (next.jitInstance.debugLevel >= 2) {
 			console.log('undeferring', next.args[0].name);
 			console.log('deferred objects remaining', __deferredLoadGeometryOf.length);
 		}
-		JITGeometrySceneLoader.prototype.loadGeometryOf.apply(next.jitInstace, next.args);
+		// if(__deferredLoadGeometryOf.length === 2) debugger;
+		JITGeometrySceneLoader.prototype.loadGeometryOf.apply(next.jitInstance, next.args);
 		// }, 100);
 	}
 }
@@ -242,6 +257,8 @@ JITGeometrySceneLoader.prototype = {
 				console.log('calling back', mesh.path);
 				object.geometryLoadCompleteCallback();
 				delete object.geometryLoadCompleteCallback;
+			} else {
+				console.log('nope', mesh.path, 'out of', objectsToPromote.length);
 			}
 			// this.isolationTest(mesh);
 		}
@@ -263,6 +280,9 @@ JITGeometrySceneLoader.prototype = {
 				var geometry = this.geometries[geometryPath];
 				if(geometry) {
 					if(this.debugLevel>=2) console.log('reusing', geometryName);
+					if(object.geometryLoadCompleteCallback) {
+						object.geometryLoadCompleteCallback();
+					}
 					object = this.promoteObjectToMesh(object, geometry);
 					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
 					if(this.debugLevel>=2) console.log('counting', geometryName, this.meshesUsingGeometriesByGeometryPaths[geometryPath].length);
@@ -287,9 +307,10 @@ JITGeometrySceneLoader.prototype = {
 					return loadResponses.LOAD_STARTED;
 				} else {
 					if(this.debugLevel>=2) console.log('deferring', geometryName);
-					var isUniqueGeometry = deferLoadGeometryOf(this, arguments);
+					object.geometryLoadCompleteCallback = callback;
+					deferLoadGeometryOf(this, arguments);
 					object.loadStatus = statuses.LOAD_DEFERRED;
-					return isUniqueGeometry ? loadResponses.LOAD_DEFERRED_UNIQUE : loadResponses.LOAD_DEFERRED_REPEAT;
+					return loadResponses.LOAD_DEFERRED;
 				}
 			default:
 				return LOAD_UNAVAILABLE;
@@ -526,7 +547,6 @@ JITGeometrySceneLoader.prototype = {
 
 		var object = this.getObjectByName(name);
 		var geometriesToLoadCount = 0;
-		var geometriesAlreadyLoadingCount = 0;
 		var geometriesLoadedCount = 0;
 		var loading = 0;
 		var _this = this;
@@ -577,8 +597,7 @@ JITGeometrySceneLoader.prototype = {
 				);
 			switch(loadResponse) {
 				case loadResponses.LOAD_STARTED:
-				case loadResponses.LOAD_DEFERRED_UNIQUE:
-				case loadResponses.LOAD_DEFERRED_REPEAT:
+				case loadResponses.LOAD_DEFERRED:
 				case loadResponses.ALREADY_LOADING:
 					geometriesToLoadCount++;
 					progressOfEachGeometry.push(0);
