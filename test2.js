@@ -1,12 +1,11 @@
-var maxConcurrentXhr = 1,
+var maxConcurrentXhr = 2,
 	debugLevelJIT = 2,
 	debugLevelHxr = 2,
 	abortDurationBaseline = 100,
 	delayBetweenIterations = 500,
 	abortDurationVariation = 200,
-	abortIterations = 10;
-
-
+	useXhrPooling = true,
+	abortIterations = 1;
 
 
 function onReady() {
@@ -139,6 +138,7 @@ function onReady() {
 		materialMatch(mesh, materials);
 	}
 
+	JITGeomSceneLoader.setXhrPooling(useXhrPooling);
 	JITGeomSceneLoader.setMaxConcurrentXhr(maxConcurrentXhr);
 	JITGeomSceneLoader.setXhrDebugLevel(debugLevelHxr);
 

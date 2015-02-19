@@ -1,6 +1,7 @@
 var xhr = require("xhr");
 
 var __xhrDebugLevel = 0;
+var __xhrPooling = true;
 var __xhrPoolSize = 0,
 	__xhrPoolFree = [],
 	__totalConcurrentXhr = 0,
@@ -29,17 +30,19 @@ function getXhrLoader(opt, onProgress, onComplete) {
 
 	var jsonResponse = /^json$/i.test(opt.responseType);
 
-	if(__xhrPoolFree.length > 0) {
+	if(__xhrPooling && __xhrPoolFree.length > 0) {
 		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.uri);
 		opt.xhr = __xhrPoolFree.shift();
 	} else {
 		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
-		__xhrPoolSize++;
+		if(__xhrPooling) __xhrPoolSize++;
 	}
 	function callbackHandler(err, res, body) {
-		if(__xhrDebugLevel >= 2) console.log('XHR return to pool', _xhr.url);
+		if(__xhrPooling) {
+			if(__xhrDebugLevel >= 2) console.log('XHR return to pool', _xhr.url);
+			__xhrPoolFree.push(_xhr);
+		}
 		__totalConcurrentXhr--;
-		__xhrPoolFree.push(_xhr);
 		if (err) {
 			onComplete(err, null, _xhr.url);
 			return;
@@ -680,6 +683,9 @@ JITGeometrySceneLoader.setMaxConcurrentXhr = function (val) {
 	__maxConcurrentXhr = val;
 }
 
+JITGeometrySceneLoader.setXhrPooling = function (val) {
+	__xhrPooling = val;
+}
 
 JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
 	__xhrDebugLevel = val;
