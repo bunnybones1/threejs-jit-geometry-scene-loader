@@ -70,6 +70,10 @@ function getXhrLoader(opt, onProgress, onComplete) {
 
 	var _xhr = xhr(opt, callbackHandler);
 	_xhr.onprogress = onProgress;
+	
+	//hotfix
+	_xhr.onreadystatechange = undefined;
+
 	// _xhr.onabort = function() {
 	// 	// callback(new Error('Aborted.'));
 	// }
