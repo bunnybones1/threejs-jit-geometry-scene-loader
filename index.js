@@ -1,4 +1,7 @@
-var xhr = require("xhr");
+var xhr = require('xhr');
+
+var jsonFormatHelper = require('./formatHelpers/json');
+var formatHelper = jsonFormatHelper;
 
 var __xhrDebugLevel = 0;
 var __xhrPooling = true;
@@ -26,15 +29,15 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		opt = { };
 
 	if (!opt.headers)
-		opt.headers = { "Content-Type": "application/json" };
+		opt.headers = { 'Content-Type': formatHelper.contentType };
 
 	var jsonResponse = /^json$/i.test(opt.responseType);
 
 	if(__xhrPooling && __xhrPoolFree.length > 0) {
-		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.uri);
+		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.url);
 		opt.xhr = __xhrPoolFree.shift();
 	} else {
-		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
+		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.url);
 		if(__xhrPooling) __xhrPoolSize++;
 	}
 	function callbackHandler(err, res, body) {
@@ -48,7 +51,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 			return;
 		}
 		if (!/^2/.test(res.statusCode)) {
-			onComplete(new Error('http status code: ' + res.statusCode));
+			onComplete(new Error('http status code: ' + res.statusCode, _xhr.url));
 			return;
 		}
 
@@ -57,12 +60,12 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		} else {
 			var data;
 			try {
-				data = JSON.parse(body);
+				data = opt.parser ? opt.parser(body) : formatHelper.parse(body);
 			} catch (e) {
-				onComplete(new Error('cannot parse json: ' + e), null, _xhr.url);
+				onComplete(new Error('cannot parse file: ' + e), null, _xhr.url);
 			}
 			if(data) {
-				if(__xhrDebugLevel >= 2) console.log("xhr complete", _xhr.url);
+				if(__xhrDebugLevel >= 2) console.log('xhr complete', _xhr.url);
 				onComplete(null, data, _xhr.url);
 			}
 		}
@@ -174,8 +177,8 @@ JITGeometrySceneLoader.prototype = {
 			path: '',
 			geometryPath: '',
 			targetParent: undefined,
-			onMeshComplete: function(mesh) { if(_this.debugLevel>=1) console.log("MESH COMPLETE"); },
-			onMeshDestroy: function(mesh) { if(_this.debugLevel>=1) console.log("MESH DESTROYED"); },
+			onMeshComplete: function(mesh) { if(_this.debugLevel>=1) console.log('MESH COMPLETE'); },
+			onMeshDestroy: function(mesh) { if(_this.debugLevel>=1) console.log('MESH DESTROYED'); },
 			onComplete: function() { if(_this.debugLevel>=1) console.log('LOAD COMPLETE'); },
 			onProgress: function(val) { if(_this.debugLevel>=1) console.log('LOAD PROGRESS:', val); },
 			debugLevel: 0
@@ -193,7 +196,6 @@ JITGeometrySceneLoader.prototype = {
 		this.meshesUsingGeometriesByGeometryPaths = {};
 		this.objectsWaitingForGeometriesByGeometryPaths = {};
 		this.loadersByGeometryPaths = {};
-		this.threeGeometryJSONLoader = new THREE.JSONLoader();
 		this.threeObjectJSONLoader = new THREE.ObjectLoader();
 		this.hierarchyRecieved = this.hierarchyRecieved.bind(this);
 		this.geometryRecieved = this.geometryRecieved.bind(this);
@@ -210,7 +212,15 @@ JITGeometrySceneLoader.prototype = {
 			_this.onProgress(sceneProgress);
 		};
 
-		var loader = getXhrLoader(url + '.hierarchy.json', onProgress, this.hierarchyRecieved);
+		var loader = getXhrLoader({
+				uri: url + '.hierarchy.json',
+				headers: { 'Content-Type': 'application/json' },
+				parser: jsonFormatHelper.parse,
+				responseType: jsonFormatHelper.responseType
+			}, 
+			onProgress, 
+			this.hierarchyRecieved
+		);
 		var sceneProgress = 0;
 	},
 
@@ -229,19 +239,19 @@ JITGeometrySceneLoader.prototype = {
 		this.onComplete();
 	},
 
-	geometryRecieved: function(err, jsonData, path) {
-		delete this.loadersByGeometryPaths[path.split('.json')[0]];
+	geometryRecieved: function(err, data, path) {
+		delete this.loadersByGeometryPaths[path.split('.'+formatHelper.fileExt)[0]];
 		if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
 		
 		if(err) {
 			if(this.debugLevel>=1) console.warn(err);
 		} else {
 			path = this.pathCropGeometries(path);
-			path = path.substring(0, path.lastIndexOf('.json'));
-			// console.log(jsonData);
+			path = path.substring(0, path.lastIndexOf('.'+formatHelper.fileExt));
+			// console.log(data);
 			if(this.debugLevel>=2) console.log('loaded', path);
 
-			var geometry = this.threeGeometryJSONLoader.parse(jsonData).geometry;
+			var geometry = formatHelper.buildGeometry(data);
 			if(this.objectsWaitingForGeometriesByGeometryPaths[path]) {
 				this.meshesUsingGeometriesByGeometryPaths[path] = [];
 				this.integrateGeometry(geometry, path);
@@ -311,7 +321,13 @@ JITGeometrySceneLoader.prototype = {
 					if(this.debugLevel>=2) console.log('loading', geometryName);
 					object.geometryLoadCompleteCallback = callback;
 					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
-					var loader = getXhrLoader(geometryPath + '.json', progressCallback, this.geometryRecieved);
+					var loader = getXhrLoader({
+							url: geometryPath + '.' + formatHelper.fileExt,
+							responseType: formatHelper.responseType
+						},
+						progressCallback, 
+						this.geometryRecieved
+					);
 					this.loadersByGeometryPaths[geometryPath] = loader;
 					if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
 					object.loadStatus = statuses.LOADING;
@@ -391,8 +407,8 @@ JITGeometrySceneLoader.prototype = {
 
 		//fix the alias for notFound
 		var slices = path.split('/');
-		if(slices[slices.length-1].indexOf("notFound") != -1){
-			slices[slices.length-1] = "notFound";
+		if(slices[slices.length-1].indexOf('notFound') != -1){
+			slices[slices.length-1] = 'notFound';
 		}
 		path = slices.join('/');
 
@@ -693,6 +709,10 @@ JITGeometrySceneLoader.setXhrPooling = function (val) {
 
 JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
 	__xhrDebugLevel = val;
+}
+
+JITGeometrySceneLoader.setFormatHelper = function (helper) {
+	formatHelper = helper;
 }
 
 JITGeometrySceneLoader.statuses = statuses;

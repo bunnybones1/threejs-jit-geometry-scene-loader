@@ -2,6 +2,7 @@ function onReady() {
 	var materialMatch = require('threejs-helper-material-assigner');
 	var View = require('threejs-managed-view').View;
 	var JITGeomSceneLoader = require('./');
+	var formatHelper = require('./formatHelpers/customBinary');
 	var MemoryStats = require('memory-stats');
 	var memoryStats = new MemoryStats();
 
@@ -94,10 +95,10 @@ function onReady() {
 			jitGeomSceneLoader.showByName(name, true);
 		};
 
-		var name = 'all/groundPlane/niceTeapot';
-		var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
-		console.log(name, 'alreadyLoaded?', alreadyLoaded);
-		loadByName(name);
+		// var name = 'all/groundPlane/niceTeapot';
+		// var alreadyLoaded = jitGeomSceneLoader.checkIfLoadedByName(name, true);
+		// console.log(name, 'alreadyLoaded?', alreadyLoaded);
+		// loadByName(name);
 		//another group which includes some objects from the first group
 
 		var tests = [];
@@ -118,6 +119,7 @@ function onReady() {
 				loadByName('Gengon001');
 			}
 		);
+		/*
 
 		//redundant group should already be loaded.
 		registerTest(
@@ -156,6 +158,7 @@ function onReady() {
 				jitGeomSceneLoader.showByName('all/groundPlane/ball3', true);
 			}
 		);
+		*/
 
 		for (var i = 0; i < tests.length; i++) {
 			function closure() {
@@ -171,6 +174,7 @@ function onReady() {
 	function onMeshComplete(mesh) {
 		materialMatch(mesh, materials);
 	}
+	JITGeomSceneLoader.setFormatHelper(formatHelper);
 	var jitGeomSceneLoader = new JITGeomSceneLoader({
 		path: scenePath,
 		geometryPath: geometryPath,
@@ -179,7 +183,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debugLevel: 0
+		debugLevel: 2
 	});
 	
 }
