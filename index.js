@@ -212,12 +212,13 @@ JITGeometrySceneLoader.prototype = {
 			_this.onProgress(sceneProgress);
 		};
 
-		var loader = getXhrLoader({
-				uri: url + '.hierarchy.json',
-				headers: { 'Content-Type': 'application/json' },
-				parser: jsonFormatHelper.parse,
-				responseType: jsonFormatHelper.responseType
-			}, 
+		var params = {
+			uri: url + '.hierarchy.json',
+			headers: { 'Content-Type': 'application/json' },
+			parser: jsonFormatHelper.parse
+		};
+		if(jsonFormatHelper.responseType) params.responseType = jsonFormatHelper.responseType;
+		var loader = getXhrLoader(params, 
 			onProgress, 
 			this.hierarchyRecieved
 		);
