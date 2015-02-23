@@ -82,7 +82,7 @@ function onReady() {
 				function(value) {
 					progressReporter(name, value);
 				}, 
-				onGeometriesComplete
+				onGeometriesComplete.bind(this, name)
 			);
 		};
 
@@ -90,7 +90,7 @@ function onReady() {
 			console.log(name, "Geometries loading progress:", value);
 		};
 
-		function onGeometriesComplete() {
+		function onGeometriesComplete(name) {
 			console.log(name, "Geometries loading complete.");
 			jitGeomSceneLoader.showByName(name, true);
 		};
@@ -183,7 +183,7 @@ function onReady() {
 		onProgress: onProgress,
 		onMeshComplete: onMeshComplete,
 		onComplete: onComplete,
-		debugLevel: 2
+		debugLevel: 0
 	});
 	
 }
