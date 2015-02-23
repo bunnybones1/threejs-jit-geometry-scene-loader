@@ -34,10 +34,10 @@ function getXhrLoader(opt, onProgress, onComplete) {
 	var jsonResponse = /^json$/i.test(opt.responseType);
 
 	if(__xhrPooling && __xhrPoolFree.length > 0) {
-		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.url);
+		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.uri);
 		opt.xhr = __xhrPoolFree.shift();
 	} else {
-		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.url);
+		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
 		if(__xhrPooling) __xhrPoolSize++;
 	}
 	function callbackHandler(err, res, body) {
@@ -325,6 +325,7 @@ JITGeometrySceneLoader.prototype = {
 					var params = {
 						uri: geometryPath + '.' + formatHelper.fileExt,
 						parser: formatHelper.parse,
+						contentType: formatHelper.contentType,
 						responseType: formatHelper.responseType
 					}
 					if(formatHelper.responseType) params.responseType = formatHelper.responseType;
