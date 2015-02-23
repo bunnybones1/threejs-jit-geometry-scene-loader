@@ -36,6 +36,9 @@ function getXhrLoader(opt, onProgress, onComplete) {
 	if(__xhrPooling && __xhrPoolFree.length > 0) {
 		if(__xhrDebugLevel >= 2) console.log('XHR reusing pool for', opt.uri);
 		opt.xhr = __xhrPoolFree.shift();
+		// opt.xhr.responseType = opt.responseType || 'text';
+		// cannot change responseType if xhr is Loading or Done...
+		// have to rethink pooling when using different responseTypes
 	} else {
 		if(__xhrDebugLevel >= 2) console.log('XHR creating new for', opt.uri);
 		if(__xhrPooling) __xhrPoolSize++;
