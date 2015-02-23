@@ -29,7 +29,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		opt = { };
 
 	if (!opt.headers)
-		opt.headers = { 'Content-Type': formatHelper.contentType };
+		opt.headers = { 'Content-Type': opt.contentType };
 
 	var jsonResponse = /^json$/i.test(opt.responseType);
 
@@ -60,7 +60,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		} else {
 			var data;
 			try {
-				data = opt.parser ? opt.parser(body) : formatHelper.parse(body);
+				data = opt.parser(body);
 			} catch (e) {
 				onComplete(new Error('cannot parse file: ' + e), null, _xhr.url);
 			}
@@ -214,8 +214,8 @@ JITGeometrySceneLoader.prototype = {
 
 		var params = {
 			uri: url + '.hierarchy.json',
-			headers: { 'Content-Type': 'application/json' },
-			parser: jsonFormatHelper.parse
+			contentType: jsonFormatHelper.contentType,
+			parser: jsonFormatHelper.parse,
 		};
 		if(jsonFormatHelper.responseType) params.responseType = jsonFormatHelper.responseType;
 		var loader = getXhrLoader(params, 
@@ -322,10 +322,15 @@ JITGeometrySceneLoader.prototype = {
 					if(this.debugLevel>=2) console.log('loading', geometryName);
 					object.geometryLoadCompleteCallback = callback;
 					this.objectsWaitingForGeometriesByGeometryPaths[geometryPath] = [object];
-					var loader = getXhrLoader({
-							url: geometryPath + '.' + formatHelper.fileExt,
-							responseType: formatHelper.responseType
-						},
+					var params = {
+						uri: geometryPath + '.' + formatHelper.fileExt,
+						parser: formatHelper.parse,
+						responseType: formatHelper.responseType
+					}
+					if(formatHelper.responseType) params.responseType = formatHelper.responseType;
+
+					var loader = getXhrLoader(
+						params,
 						progressCallback, 
 						this.geometryRecieved
 					);
