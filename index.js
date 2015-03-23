@@ -10,6 +10,17 @@ var __xhrPoolSize = 0,
 	__totalConcurrentXhr = 0,
 	__maxConcurrentXhr = 5;
 
+var cache = {};
+function storeCache(url, data) {
+	cache[url] = data;
+}
+function checkCache(url) {
+	return !!cache[url];
+}
+function retreiveCache(url) {
+	return cache[url];
+}
+
 function abortXhr(xhr) {
 	if(__xhrDebugLevel >= 1) console.warn('Abort status.', xhr.readyState, xhr.status);
 	if(xhr.readyState === 1 || xhr.readyState === 3) {
@@ -27,6 +38,14 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		opt = { uri: opt };
 	else if (!opt)
 		opt = { };
+
+	if(checkCache(opt.uri)) {
+		setTimeout(function() {
+			onProgress(1);
+			onComplete(null, retreiveCache(opt.uri), opt.uri);
+		}, 50);
+		return null;
+	}
 
 	if (!opt.headers)
 		opt.headers = { 'Content-Type': opt.contentType };
@@ -60,6 +79,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 
 		if (jsonResponse) { 
 			onComplete(null, body, _xhr.url);
+			storeCache(_xhr.url, body);
 		} else {
 			var data;
 			try {
@@ -69,6 +89,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 			}
 			if(data) {
 				if(__xhrDebugLevel >= 2) console.log('xhr complete', _xhr.url);
+				storeCache(_xhr.url, data);
 				onComplete(null, data, _xhr.url);
 			}
 		}
@@ -190,7 +211,6 @@ JITGeometrySceneLoader.prototype = {
 		for(var key in defaults) {
 			this[key] = props[key] !== undefined ? props[key] : defaults[key];
 		}
-		
 
 		this.pathBase = this.path.substring(0, this.path.lastIndexOf('/')+1);
 		this.path = this.pathCropBase(this.path);
@@ -338,8 +358,10 @@ JITGeometrySceneLoader.prototype = {
 						progressCallback, 
 						this.geometryRecieved
 					);
-					this.loadersByGeometryPaths[geometryPath] = loader;
-					if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
+					if(loader) {
+						this.loadersByGeometryPaths[geometryPath] = loader;
+						if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
+					}
 					object.loadStatus = statuses.LOADING;
 					attemptToLoadDeferredObjects();
 					return loadResponses.LOAD_STARTED;
@@ -452,6 +474,7 @@ JITGeometrySceneLoader.prototype = {
 			object.quaternion.z = jsonData.quaternion[2];
 			object.quaternion.w = jsonData.quaternion[3];
 		}
+
 		return object;
 	},
 
