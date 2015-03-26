@@ -202,6 +202,7 @@ JITGeometrySceneLoader.prototype = {
 			geometryPath: '',
 			targetParent: undefined,
 			onMeshComplete: function(mesh) { if(_this.debugLevel>=1) console.log('MESH COMPLETE'); },
+			extraGeometryStep: function(geometry, callback) { if(_this.debugLevel>=1) console.log('GEOMETRY COMPLETE'); callback()},
 			onMeshDestroy: function(mesh) { if(_this.debugLevel>=1) console.log('MESH DESTROYED'); },
 			onComplete: function() { if(_this.debugLevel>=1) console.log('LOAD COMPLETE'); },
 			onProgress: function(val) { if(_this.debugLevel>=1) console.log('LOAD PROGRESS:', val); },
@@ -276,12 +277,16 @@ JITGeometrySceneLoader.prototype = {
 			if(this.debugLevel>=2) console.log('loaded', path);
 
 			var geometry = formatHelper.buildGeometry(data);
-			if(this.objectsWaitingForGeometriesByGeometryPaths[path]) {
-				this.meshesUsingGeometriesByGeometryPaths[path] = [];
-				this.integrateGeometry(geometry, path);
-			} else {
-				if(this.debugLevel>=2) console.warn('No meshes to receive geomerty', path);
-			}
+			geometry.name = path;
+			var _this = this;
+			this.extraGeometryStep(geometry, function() {
+				if(_this.objectsWaitingForGeometriesByGeometryPaths[path]) {
+					_this.meshesUsingGeometriesByGeometryPaths[path] = [];
+					_this.integrateGeometry(geometry, path);
+				} else {
+					if(_this.debugLevel>=2) console.warn('No meshes to receive geomerty', path);
+				}
+			})
 		}
 		attemptToLoadDeferredObjects();
 	},
