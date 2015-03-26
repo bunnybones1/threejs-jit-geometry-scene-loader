@@ -744,7 +744,7 @@ JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
 	__xhrDebugLevel = val;
 }
 
-JITGeometrySceneLoader.setFormatHelper = function (helper) {
+JITGeometrySceneLoader.setFormatHelper = function (helper) {
 	formatHelper = helper;
 }
 
