@@ -630,9 +630,9 @@ JITGeometrySceneLoader.prototype = {
 		}
 		function geometryLoadProgressCallback(whichUniqueGeometry, event) {
 			if(event.lengthComputable) {
-				progressOfEachGeometry[whichUniqueGeometry] = event.loaded / event.total;
+				progressOfEachGeometry[whichUniqueGeometry] = event.loaded / event.total * 0.99;
 			} else {
-				progressOfEachGeometry[whichUniqueGeometry] = event.loaded === 0 ? 0 : (1 - (1 - progressOfEachGeometry[whichUniqueGeometry]) * 0.5);
+				progressOfEachGeometry[whichUniqueGeometry] = event.loaded === 0 ? 0 : (1 - (1 - progressOfEachGeometry[whichUniqueGeometry]) * 0.5) * 0.99;
 			}
 			reportProgress();
 		}
