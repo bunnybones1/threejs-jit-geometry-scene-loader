@@ -47,8 +47,8 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		return null;
 	}
 
-	if (!opt.headers)
-		opt.headers = { 'Content-Type': opt.contentType };
+	//if (!opt.headers)
+	//	opt.headers = { 'Content-Type': opt.contentType };
 
 	var jsonResponse = /^json$/i.test(opt.responseType);
 
