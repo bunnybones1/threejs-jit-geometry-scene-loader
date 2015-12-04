@@ -121,6 +121,7 @@ var statuses = {
 }
 
 var loadResponses = {
+	LOAD_UNAVAILABLE : -1,
 	ALREADY_LOADED : 0,
 	LOAD_STARTED : 1,
 	ALREADY_LOADING : 2,
@@ -130,6 +131,16 @@ var loadResponses = {
 var __deferredLoadGeometryOf = [];
 
 function JITGeometrySceneLoader(props) {
+	this.objectsByPath = {};
+	this.geometries = {};
+	this.meshesUsingGeometriesByGeometryPaths = {};
+	this.objectsWaitingForGeometriesByGeometryPaths = {};
+	this.loadersByGeometryPaths = {};
+	this.threeObjectJSONLoader = new THREE.ObjectLoader();
+	this.hierarchyRecieved = this.hierarchyRecieved.bind(this);
+	this.geometryRecieved = this.geometryRecieved.bind(this);
+	this.showByName = this.showByName.bind(this);
+	this.hideByName = this.hideByName.bind(this);
 	if(props) this.load(props);
 }
 
@@ -163,7 +174,7 @@ function cancelDeferredLoadGeometryOf(object) {
 			break;
 		}
 	}
-	if(index != -1) {
+	if(index !== -1) {
 		console.log('deferred object cancelled', object.name);
 		__deferredLoadGeometryOf.splice(index, 1);
 	} else {
@@ -213,18 +224,7 @@ JITGeometrySceneLoader.prototype = {
 			this[key] = props[key] !== undefined ? props[key] : defaults[key];
 		}
 
-		this.pathBase = this.path.substring(0, this.path.lastIndexOf('/')+1);
-		this.path = this.pathCropBase(this.path);
-		this.objectsByPath = {};
-		this.geometries = {};
-		this.meshesUsingGeometriesByGeometryPaths = {};
-		this.objectsWaitingForGeometriesByGeometryPaths = {};
-		this.loadersByGeometryPaths = {};
-		this.threeObjectJSONLoader = new THREE.ObjectLoader();
-		this.hierarchyRecieved = this.hierarchyRecieved.bind(this);
-		this.geometryRecieved = this.geometryRecieved.bind(this);
-		this.showByName = this.showByName.bind(this);
-		this.hideByName = this.hideByName.bind(this);
+		this.setPath(this.path);
 		var url = this.pathBase + this.path;
 		
 		function onProgress(event) {
@@ -234,7 +234,7 @@ JITGeometrySceneLoader.prototype = {
 				sceneProgress = (1 - (1 - sceneProgress) * 0.5);
 			}
 			_this.onProgress(sceneProgress);
-		};
+		}
 
 		var params = {
 			uri: url + '.hierarchy.json',
@@ -249,12 +249,35 @@ JITGeometrySceneLoader.prototype = {
 		var sceneProgress = 0;
 	},
 
+	setPath: function(path) {
+		this.pathBase = path.substring(0, path.lastIndexOf('/')+1);
+		this.path = this.pathCropBase(path);
+	},
+
 	hierarchyRecieved: function(err, jsonData, path) {
 		if(err) {
 			throw err;
 		}
 		path = path.split('.hierarchy.json')[0];
-		this.root = new THREE.Object3D();
+		if(!this.root) {
+			this.root = new THREE.Object3D();
+		} else {
+			var children = [];
+			var _this = this;
+			this.root.traverse(function(obj) {
+				if(obj instanceof THREE.Mesh) {
+					obj = _this.demoteMeshToObject(obj);
+				}
+				children.push(obj);
+			});
+			var index = children.indexOf(this.root);
+			if(index !== -1) {
+				children.splice(index, 1);
+			}
+			children.forEach(function(obj) {
+				if(obj.parent) obj.parent.remove(obj);
+			});
+		}
 		for(var childName in jsonData) {
 			this.root.add(this.createObject(jsonData[childName], path + '/' + childName));
 		}
@@ -331,11 +354,11 @@ JITGeometrySceneLoader.prototype = {
 				var geometry = this.geometries[geometryPath];
 				if(geometry) {
 					if(this.debugLevel>=2) console.log('reusing', geometryName);
+					object = this.promoteObjectToMesh(object, geometry);
+					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
 					if(object.geometryLoadCompleteCallback) {
 						object.geometryLoadCompleteCallback();
 					}
-					object = this.promoteObjectToMesh(object, geometry);
-					this.meshesUsingGeometriesByGeometryPaths[geometryPath].push(object);
 					if(this.debugLevel>=2) console.log('counting', geometryName, this.meshesUsingGeometriesByGeometryPaths[geometryPath].length);
 					attemptToLoadDeferredObjects();
 					return loadResponses.ALREADY_LOADED;
@@ -377,8 +400,9 @@ JITGeometrySceneLoader.prototype = {
 					object.loadStatus = statuses.LOAD_DEFERRED;
 					return loadResponses.LOAD_DEFERRED;
 				}
+				break;
 			default:
-				return LOAD_UNAVAILABLE;
+				return loadResponses.LOAD_UNAVAILABLE;
 		}
 	},
 
@@ -387,6 +411,7 @@ JITGeometrySceneLoader.prototype = {
 		if(loadStatus !== statuses.LOADED && loadStatus !== statuses.LOADING && loadStatus !== statuses.LOAD_DEFERRED && loadStatus !== statuses.IMPOSTER) return;
 		var geometryName = object.geometryName;
 		var geometryPath = this.geometryPath + '/' + geometryName;
+		var index;
 		if(this.debugLevel>=2) console.log('UNLOAD', geometryName);
 		switch(loadStatus) {
 			case statuses.IMPOSTER:
@@ -397,7 +422,7 @@ JITGeometrySceneLoader.prototype = {
 				var geometry = this.geometries[geometryPath];
 				if(this.debugLevel>=2) console.log('unloading', geometryName);
 				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
-				var index = meshesUsingGeometry.indexOf(object);
+				index = meshesUsingGeometry.indexOf(object);
 				meshesUsingGeometry.splice(index, 1);
 				object = this.demoteMeshToObject(object, geometry);
 				if(meshesUsingGeometry.length === 0) {
@@ -419,7 +444,7 @@ JITGeometrySceneLoader.prototype = {
 			case statuses.LOADING:
 				if(this.debugLevel >= 2) console.log('cancelling load of', geometryName);
 				var objectsWaitingForGeometry = this.objectsWaitingForGeometriesByGeometryPaths[geometryPath];
-				var index = objectsWaitingForGeometry.indexOf(object);
+				index = objectsWaitingForGeometry.indexOf(object);
 				objectsWaitingForGeometry.splice(index, 1);
 				if(this.debugLevel >= 2) {
 					console.log('loading geometry', geometryName, 'still waited on by', objectsWaitingForGeometry.length, 'objects');
@@ -444,7 +469,7 @@ JITGeometrySceneLoader.prototype = {
 
 		//fix the alias for notFound
 		var slices = path.split('/');
-		if(slices[slices.length-1].indexOf('notFound') != -1){
+		if(slices[slices.length-1].indexOf('notFound') !== -1){
 			slices[slices.length-1] = 'notFound';
 		}
 		path = slices.join('/');
@@ -645,6 +670,8 @@ JITGeometrySceneLoader.prototype = {
 			if(_this.debugLevel>=1) console.log(name+'\'s geometry objects loaded:', geometriesLoadedCount + '/' + geometriesToLoadCount);
 			if(geometriesToLoadCount === geometriesLoadedCount) {
 				if(callback) {
+					var test = _this.checkIfLoadedByName(name);
+					if(!test) debugger;
 					callback();
 				}
 			}
