@@ -131,16 +131,6 @@ var loadResponses = {
 var __deferredLoadGeometryOf = [];
 
 function JITGeometrySceneLoader(props) {
-	this.objectsByPath = {};
-	this.geometries = {};
-	this.meshesUsingGeometriesByGeometryPaths = {};
-	this.objectsWaitingForGeometriesByGeometryPaths = {};
-	this.loadersByGeometryPaths = {};
-	this.threeObjectJSONLoader = new THREE.ObjectLoader();
-	this.hierarchyRecieved = this.hierarchyRecieved.bind(this);
-	this.geometryRecieved = this.geometryRecieved.bind(this);
-	this.showByName = this.showByName.bind(this);
-	this.hideByName = this.hideByName.bind(this);
 	if(props) this.load(props);
 }
 
@@ -225,8 +215,30 @@ JITGeometrySceneLoader.prototype = {
 		}
 
 		this.setPath(this.path);
+		if(!this.initd) {
+			this.initd = true;
+			this.objectsByPath = {};
+			this.geometries = {};
+			this.meshesUsingGeometriesByGeometryPaths = {};
+			this.objectsWaitingForGeometriesByGeometryPaths = {};
+			this.loadersByGeometryPaths = {};
+			this.threeObjectJSONLoader = new THREE.ObjectLoader();
+			this.hierarchyRecieved = this.hierarchyRecieved.bind(this);
+			this.geometryRecieved = this.geometryRecieved.bind(this);
+			this.showByName = this.showByName.bind(this);
+			this.hideByName = this.hideByName.bind(this);
+		} else {
+			var collection = [];
+			this.root.traverse(function(obj) {
+				collection.push(obj);
+			});
+			collection.forEach(function(obj){
+				_this.unloadGeometryOf(obj);
+			});
+		}
 		var url = this.pathBase + this.path;
 		
+		var sceneProgress = 0;
 		function onProgress(event) {
 			if(event.lengthComputable) {
 				sceneProgress = event.loaded / event.total;
@@ -246,7 +258,6 @@ JITGeometrySceneLoader.prototype = {
 			onProgress, 
 			this.hierarchyRecieved
 		);
-		var sceneProgress = 0;
 	},
 
 	setPath: function(path) {
@@ -284,7 +295,10 @@ JITGeometrySceneLoader.prototype = {
 		if(this.targetParent) {
 			this.targetParent.add(this.root);
 		}
-		this.onComplete();
+		if(this.onComplete) {
+			this.onComplete();
+			delete this.onComplete;
+		}
 	},
 
 	geometryRecieved: function(err, data, path) {
@@ -327,7 +341,7 @@ JITGeometrySceneLoader.prototype = {
 			meshesUsingGeometry.push(mesh);
 			// console.log('calling back?', mesh.path);
 			if(object.geometryLoadCompleteCallback) {
-				// if(i != 0) debugger;
+				// if(i !== 0) debugger;
 				// console.log('calling back', mesh.path);
 				object.geometryLoadCompleteCallback();
 				delete object.geometryLoadCompleteCallback;
@@ -422,6 +436,7 @@ JITGeometrySceneLoader.prototype = {
 				var geometry = this.geometries[geometryPath];
 				if(this.debugLevel>=2) console.log('unloading', geometryName);
 				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
+				if(!meshesUsingGeometry) return;
 				index = meshesUsingGeometry.indexOf(object);
 				meshesUsingGeometry.splice(index, 1);
 				object = this.demoteMeshToObject(object, geometry);
@@ -670,8 +685,6 @@ JITGeometrySceneLoader.prototype = {
 			if(_this.debugLevel>=1) console.log(name+'\'s geometry objects loaded:', geometriesLoadedCount + '/' + geometriesToLoadCount);
 			if(geometriesToLoadCount === geometriesLoadedCount) {
 				if(callback) {
-					var test = _this.checkIfLoadedByName(name);
-					if(!test) debugger;
 					callback();
 				}
 			}
