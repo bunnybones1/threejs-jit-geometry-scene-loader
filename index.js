@@ -110,6 +110,8 @@ function getXhrLoader(opt, onProgress, onComplete) {
 
 function noop() {}
 
+var nope = false;
+
 var statuses = {
 	IMPOSTER : -3,
 	SHOULDNT_EVEN_EXIST : -2,
@@ -187,6 +189,20 @@ function attemptToLoadDeferredObjects() {
 	}
 }
 
+function disposeGeometry(geometry) {
+	for ( var name in geometry.attributes ) {
+		var attribute = geometry.attributes[ name ];
+		delete attribute.array;
+	}
+
+	geometry.meshes.forEach(function(mesh){
+		if(mesh.parent) {
+			mesh.parent.remove(mesh);
+		}
+	});
+	geometry.meshes.length = 0;
+}
+
 JITGeometrySceneLoader.prototype = {
 	objectsByPath: undefined,
 	geometries: undefined,
@@ -194,6 +210,7 @@ JITGeometrySceneLoader.prototype = {
 	objectsWaitingForGeometriesByGeometryPaths: undefined,
 	loadersByGeometryPaths: undefined,
 	load: function (props) {
+		if(nope) return;
 		var _this = this;
 		props = props || {};
 
@@ -210,6 +227,32 @@ JITGeometrySceneLoader.prototype = {
 			debugLevel: 0
 		};
 
+		if(this.initd) {
+			var keys = Object.keys(this.meshesUsingGeometriesByGeometryPaths);
+			keys.forEach(function(key){
+				var parts = _this.meshesUsingGeometriesByGeometryPaths[key].slice();
+				parts.forEach(function(part) {
+					_this.unloadGeometryOf(part);
+				});
+			});
+			var collection = [];
+			this.root.traverse(function(obj) {
+				collection.push(obj);
+			});
+			collection.forEach(function(obj){
+				if(obj.geometry) {
+					disposeGeometry(obj.geometry);
+				}
+				if(obj.parent) obj.parent.remove(obj);
+			});
+			collection.length = 0;
+			
+			keys = Object.keys(this.objectsByPath);
+			keys.forEach(function(key) {
+				delete _this.objectsByPath[key].geometry;
+			});
+
+		}
 		for(var key in defaults) {
 			this[key] = props[key] !== undefined ? props[key] : defaults[key];
 		}
@@ -227,14 +270,6 @@ JITGeometrySceneLoader.prototype = {
 			this.geometryRecieved = this.geometryRecieved.bind(this);
 			this.showByName = this.showByName.bind(this);
 			this.hideByName = this.hideByName.bind(this);
-		} else {
-			var collection = [];
-			this.root.traverse(function(obj) {
-				collection.push(obj);
-			});
-			collection.forEach(function(obj){
-				_this.unloadGeometryOf(obj);
-			});
 		}
 		var url = this.pathBase + this.path;
 		
@@ -266,6 +301,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	hierarchyRecieved: function(err, jsonData, path) {
+		if(nope) return;
 		if(err) {
 			throw err;
 		}
@@ -302,6 +338,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	geometryRecieved: function(err, data, path) {
+		if(nope) return;
 		delete this.loadersByGeometryPaths[path.split('.'+formatHelper.fileExt)[0]];
 		if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
 		
@@ -354,6 +391,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	loadGeometryOf: function(object, progressCallback, callback) {
+		if(nope) return;
 		var loadStatus = object.loadStatus;
 		if(loadStatus !== statuses.LOAD_AVAILABLE && loadStatus !== statuses.LOAD_DEFERRED) return false;
 		// object.add(new THREE.Mesh(new THREE.SphereGeometry(10)));
@@ -421,6 +459,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	unloadGeometryOf: function(object) {
+		if(nope) return;
 		var loadStatus = object.loadStatus;
 		if(loadStatus !== statuses.LOADED && loadStatus !== statuses.LOADING && loadStatus !== statuses.LOAD_DEFERRED && loadStatus !== statuses.IMPOSTER) return;
 		var geometryName = object.geometryName;
@@ -430,19 +469,23 @@ JITGeometrySceneLoader.prototype = {
 		switch(loadStatus) {
 			case statuses.IMPOSTER:
 				if(this.debugLevel>=2) console.log('disposing imposter mesh', geometryName)
-				object.parent.remove(object);
+				if(object.parent) {
+					object.parent.remove(object);
+				}
 				break;
 			case statuses.LOADED: 
 				var geometry = this.geometries[geometryPath];
 				if(this.debugLevel>=2) console.log('unloading', geometryName);
 				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
-				if(!meshesUsingGeometry) return;
+				if(!meshesUsingGeometry) {
+					return;
+				}
 				index = meshesUsingGeometry.indexOf(object);
 				meshesUsingGeometry.splice(index, 1);
 				object = this.demoteMeshToObject(object, geometry);
 				if(meshesUsingGeometry.length === 0) {
 					if(this.debugLevel >= 2) console.log('disposing geometry', geometryName);
-					geometry.dispose();
+					disposeGeometry(geometry);
 					delete this.meshesUsingGeometriesByGeometryPaths[geometryPath];
 					delete this.geometries[geometryPath];
 					if(this.debugLevel>=2) console.log(Object.keys(this.geometries).length, 'geometries in memory');
@@ -524,6 +567,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	promoteObjectToMesh: function(object, geometry) {
+		if(nope) return;
 		var mesh = new THREE.Mesh(geometry);
 		mesh.path = object.path;
 		mesh.name = object.name;
@@ -540,6 +584,7 @@ JITGeometrySceneLoader.prototype = {
 			parent.remove(object);
 			parent.add(mesh);
 		} else {
+			nope = true;
 			throw new Error('wtf');
 		}
 
@@ -563,6 +608,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	demoteMeshToObject: function(mesh) {
+		if(nope) return;
 		var object = new THREE.Object3D();
 		object.path = mesh.path;
 		object.name = mesh.name;
@@ -578,7 +624,8 @@ JITGeometrySceneLoader.prototype = {
 			parent.remove(mesh);
 			parent.add(object);
 		} else {
-			throw new Error('wtf');
+			// nope = true;
+			// throw new Error('wtf');
 		}
 
 		mesh.updateMatrix();
@@ -623,14 +670,17 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	showByName: function(name, recursive, childrenOnly) {
+		if(nope) return;
 		this.setVisibilityByName(name, true, recursive, childrenOnly);
 	},
 
 	hideByName: function(name, recursive, childrenOnly) {
+		if(nope) return;
 		this.setVisibilityByName(name, false, recursive, childrenOnly);
 	},
 
 	setVisibilityByName: function(name, state, recursive, childrenOnly) {
+		if(nope) return;
 		var object = this.getObjectByName(name);
 		if(!object) {
 			object = this.notFound(name);
@@ -650,6 +700,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	loadByName: function(name, recursive, progressCallback, callback) {
+		if(nope) return;
 
 		var object = this.getObjectByName(name);
 		var geometriesToLoadCount = 0;
@@ -731,6 +782,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	unloadByName: function(name, recursive) {
+		if(nope) return;
 		var object = this.getObjectByName(name);
 		var _this = this;
 
@@ -750,6 +802,7 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	checkIfLoadedByName: function(name, recursive) {
+		if(nope) return;
 		var object = this.getObjectByName(name);
 		var loaded = object.loadStatus === statuses.LOADED || object.loadStatus === statuses.LOAD_UNAVAILABLE || object.loadStatus === statuses.IMPOSTER;
 		var _this = this;
@@ -767,11 +820,13 @@ JITGeometrySceneLoader.prototype = {
 	},
 
 	getObjectByName: function(name) {
+		if(nope) return;
 		var objPath = this.pathBase + this.path + '/' + name;
 		return this.objectsByPath[objPath];
 	},
 
 	getNameByPath: function(path) {
+		if(nope) return;
 		var objPath = this.pathBase + this.path + '/';
 		return path.split(objPath)[1];
 	}
