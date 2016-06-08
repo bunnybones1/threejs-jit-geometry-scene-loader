@@ -120,7 +120,7 @@ var statuses = {
 	LOADING : 1,
 	LOADED : 2,
 	LOAD_DEFERRED : 3
-}
+};
 
 var loadResponses = {
 	LOAD_UNAVAILABLE : -1,
@@ -128,7 +128,7 @@ var loadResponses = {
 	LOAD_STARTED : 1,
 	ALREADY_LOADING : 2,
 	LOAD_DEFERRED : 3
-}
+};
 
 var __deferredLoadGeometryOf = [];
 
@@ -141,7 +141,7 @@ function deferLoadGeometryOf(jitInstance, args) {
 	var deferredLoad = {
 		jitInstance: jitInstance,
 		args: args
-	}
+	};
 
 	for (var i = 0; i < __deferredLoadGeometryOf.length; i++) {
 		var oldDeferredLoad = __deferredLoadGeometryOf[i];
@@ -220,7 +220,7 @@ JITGeometrySceneLoader.prototype = {
 			geometryPath: '',
 			targetParent: undefined,
 			onMeshComplete: function(mesh) { if(_this.debugLevel>=1) console.log('MESH COMPLETE'); },
-			extraGeometryStep: function(geometry, callback) { if(_this.debugLevel>=1) console.log('GEOMETRY COMPLETE'); callback()},
+			extraGeometryStep: function(geometry, callback) { if(_this.debugLevel>=1) console.log('GEOMETRY COMPLETE'); callback(); },
 			onMeshDestroy: function(mesh) { if(_this.debugLevel>=1) console.log('MESH DESTROYED'); },
 			onComplete: function() { if(_this.debugLevel>=1) console.log('LOAD COMPLETE'); },
 			onProgress: function(val) { if(_this.debugLevel>=1) console.log('LOAD PROGRESS:', val); },
@@ -360,7 +360,7 @@ JITGeometrySceneLoader.prototype = {
 				} else {
 					if(_this.debugLevel>=2) console.warn('No meshes to receive geomerty', path);
 				}
-			})
+			});
 		}
 		attemptToLoadDeferredObjects();
 	},
@@ -430,7 +430,7 @@ JITGeometrySceneLoader.prototype = {
 						parser: formatHelper.parse,
 						contentType: formatHelper.contentType,
 						responseType: formatHelper.responseType
-					}
+					};
 					if(formatHelper.responseType) params.responseType = formatHelper.responseType;
 
 					var loader = getXhrLoader(
@@ -468,7 +468,7 @@ JITGeometrySceneLoader.prototype = {
 		if(this.debugLevel>=2) console.log('UNLOAD', geometryName);
 		switch(loadStatus) {
 			case statuses.IMPOSTER:
-				if(this.debugLevel>=2) console.log('disposing imposter mesh', geometryName)
+				if(this.debugLevel>=2) console.log('disposing imposter mesh', geometryName);
 				if(object.parent) {
 					object.parent.remove(object);
 				}
@@ -770,7 +770,7 @@ JITGeometrySceneLoader.prototype = {
 				});
 				collection.forEach(function(obj){
 					attemptToLoadGeometry(obj);
-				})
+				});
 			} else {
 				attemptToLoadGeometry(object);
 			}
@@ -794,7 +794,7 @@ JITGeometrySceneLoader.prototype = {
 				});
 				collection.forEach(function(obj){
 					_this.unloadGeometryOf(obj);
-				})
+				});
 			} else {
 				this.unloadGeometryOf(object);
 			}
@@ -834,19 +834,23 @@ JITGeometrySceneLoader.prototype = {
 
 JITGeometrySceneLoader.setMaxConcurrentXhr = function (val) {
 	__maxConcurrentXhr = val;
-}
+};
 
 JITGeometrySceneLoader.setXhrPooling = function (val) {
 	__xhrPooling = val;
-}
+};
 
 JITGeometrySceneLoader.setXhrDebugLevel = function (val) {
 	__xhrDebugLevel = val;
-}
+};
 
 JITGeometrySceneLoader.setFormatHelper = function (helper) {
 	formatHelper = helper;
-}
+};
+
+JITGeometrySceneLoader.setXhrModule = function(alt) {
+	xhr = alt;
+};
 
 JITGeometrySceneLoader.statuses = statuses;
 
