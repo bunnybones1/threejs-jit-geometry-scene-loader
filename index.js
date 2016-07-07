@@ -77,7 +77,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 			return;
 		}
 
-		if (jsonResponse) { 
+		if (jsonResponse) {
 			onComplete(null, body, _xhr.url);
 			storeCache(_xhr.url, body);
 		} else {
@@ -97,7 +97,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 
 	var _xhr = xhr(opt, callbackHandler);
 	_xhr.onprogress = onProgress;
-	
+
 	//hotfix
 	_xhr.onreadystatechange = undefined;
 
@@ -246,7 +246,7 @@ JITGeometrySceneLoader.prototype = {
 				if(obj.parent) obj.parent.remove(obj);
 			});
 			collection.length = 0;
-			
+
 			keys = Object.keys(this.objectsByPath);
 			keys.forEach(function(key) {
 				delete _this.objectsByPath[key].geometry;
@@ -272,7 +272,7 @@ JITGeometrySceneLoader.prototype = {
 			this.hideByName = this.hideByName.bind(this);
 		}
 		var url = this.pathBase + this.path;
-		
+
 		var sceneProgress = 0;
 		function onProgress(event) {
 			if(event.lengthComputable) {
@@ -289,8 +289,8 @@ JITGeometrySceneLoader.prototype = {
 			parser: jsonFormatHelper.parse,
 		};
 		if(jsonFormatHelper.responseType) params.responseType = jsonFormatHelper.responseType;
-		var loader = getXhrLoader(params, 
-			onProgress, 
+		var loader = getXhrLoader(params,
+			onProgress,
 			this.hierarchyRecieved
 		);
 	},
@@ -341,7 +341,7 @@ JITGeometrySceneLoader.prototype = {
 		if(nope) return;
 		delete this.loadersByGeometryPaths[path.split('.'+formatHelper.fileExt)[0]];
 		if(this.debugLevel>=2) console.log('total loaders', Object.keys(this.loadersByGeometryPaths).length);
-		
+
 		if(err) {
 			if(this.debugLevel>=1) console.warn(err);
 		} else {
@@ -435,7 +435,7 @@ JITGeometrySceneLoader.prototype = {
 
 					var loader = getXhrLoader(
 						params,
-						progressCallback, 
+						progressCallback,
 						this.geometryRecieved
 					);
 					if(loader) {
@@ -473,7 +473,7 @@ JITGeometrySceneLoader.prototype = {
 					object.parent.remove(object);
 				}
 				break;
-			case statuses.LOADED: 
+			case statuses.LOADED:
 				var geometry = this.geometries[geometryPath];
 				if(this.debugLevel>=2) console.log('unloading', geometryName);
 				var meshesUsingGeometry = this.meshesUsingGeometriesByGeometryPaths[geometryPath];
@@ -555,7 +555,7 @@ JITGeometrySceneLoader.prototype = {
 		} else {
 			object.loadStatus = statuses.LOAD_UNAVAILABLE;
 		}
-		
+
 		if(jsonData.quaternion) {
 			object.quaternion.x = jsonData.quaternion[0];
 			object.quaternion.y = jsonData.quaternion[1];
@@ -603,7 +603,7 @@ JITGeometrySceneLoader.prototype = {
 			this.root = mesh;
 		}
 		var _this = this;
-		this.onMeshComplete(mesh); 
+		this.onMeshComplete(mesh);
 		return mesh;
 	},
 
@@ -645,7 +645,7 @@ JITGeometrySceneLoader.prototype = {
 
 		var _this = this;
 
-		this.onMeshDestroy(mesh); 
+		this.onMeshDestroy(mesh);
 		return object;
 	},
 
@@ -746,12 +746,11 @@ JITGeometrySceneLoader.prototype = {
 		}
 
 		function attemptToLoadGeometry(obj) {
-			var loadResponse = 
-				_this.loadGeometryOf(
-					obj,
-					geometryLoadProgressCallback.bind(obj, geometriesToLoadCount), 
-					geometryLoadCompleteCallback.bind(obj, geometriesToLoadCount)
-				);
+			var loadResponse = _this.loadGeometryOf(
+				obj,
+				geometryLoadProgressCallback.bind(obj, geometriesToLoadCount),
+				geometryLoadCompleteCallback.bind(obj, geometriesToLoadCount)
+			);
 			switch(loadResponse) {
 				case loadResponses.LOAD_STARTED:
 				case loadResponses.LOAD_DEFERRED:
