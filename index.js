@@ -69,6 +69,7 @@ function getXhrLoader(opt, onProgress, onComplete) {
 		}
 		__totalConcurrentXhr--;
 		if (err) {
+			if(__xhrDebugLevel >= 2) console.error('xhr error', _xhr.url);
 			onComplete(err, null, _xhr.url);
 			return;
 		}
@@ -250,6 +251,7 @@ JITGeometrySceneLoader.prototype = {
 			keys = Object.keys(this.objectsByPath);
 			keys.forEach(function(key) {
 				delete _this.objectsByPath[key].geometry;
+				delete _this.objectsByPath[key];
 			});
 
 		}
